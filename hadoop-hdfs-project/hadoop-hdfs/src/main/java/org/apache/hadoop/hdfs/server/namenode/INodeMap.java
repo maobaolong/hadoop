@@ -17,42 +17,36 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import java.io.IOException;
 import java.util.Iterator;
 
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
-import org.apache.hadoop.util.GSet;
-import org.apache.hadoop.util.LightWeightGSet;
-
-import com.google.common.base.Preconditions;
+import org.apache.hadoop.hdfs.server.namenode.metastore.InodeStore;
+import org.apache.hadoop.hdfs.server.namenode.metastore.heap.HeapInodeStore;
 
 /**
  * Storing all the {@link INode}s and maintaining the mapping between INode ID
  * and INode.  
- */
+*/
 public class INodeMap {
-  
+
   static INodeMap newInstance(INodeDirectory rootDir) {
-    // Compute the map capacity by allocating 1% of total memory
-    int capacity = LightWeightGSet.computeCapacity(1, "INodeMap");
-    GSet<INode, INodeWithAdditionalFields> map =
-        new LightWeightGSet<>(capacity);
-    map.put(rootDir);
-    return new INodeMap(map);
+    InodeStore inodeStore = new HeapInodeStore(rootDir);
+    return new INodeMap(inodeStore);
   }
 
   /** Synchronized by external lock. */
-  private final GSet<INode, INodeWithAdditionalFields> map;
+  private InodeStore inodeStore;
   
   public Iterator<INodeWithAdditionalFields> getMapIterator() {
-    return map.iterator();
+    return inodeStore.getMapIterator();
   }
 
-  private INodeMap(GSet<INode, INodeWithAdditionalFields> map) {
-    Preconditions.checkArgument(map != null);
-    this.map = map;
+  private INodeMap(InodeStore inodeStore) {
+    this.inodeStore = inodeStore;
   }
   
   /**
@@ -61,8 +55,11 @@ public class INodeMap {
    * @param inode The {@link INode} to be added to the map.
    */
   public final void put(INode inode) {
-    if (inode instanceof INodeWithAdditionalFields) {
-      map.put((INodeWithAdditionalFields)inode);
+    // TODO(maobaolong): throw the exception to the callee
+    try {
+      inodeStore.put(inode);
+    } catch (IOException e) {
+      e.printStackTrace();
     }
   }
   
@@ -71,14 +68,19 @@ public class INodeMap {
    * @param inode The {@link INode} to be removed.
    */
   public final void remove(INode inode) {
-    map.remove(inode);
+    // TODO(maobaolong): throw the exception to the callee
+    try {
+      inodeStore.remove(inode);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
   }
   
   /**
    * @return The size of the map.
    */
   public int size() {
-    return map.size();
+    return inodeStore.size();
   }
   
   /**
@@ -128,14 +130,20 @@ public class INodeMap {
         return HdfsConstants.BLOCK_STORAGE_POLICY_ID_UNSPECIFIED;
       }
     };
-      
-    return map.get(inode);
+
+    // TODO(maobaolong): throw the exception to the callee
+    try {
+      return inodeStore.get(inode);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    return null;
   }
   
   /**
-   * Clear the {@link #map}
+   * Clear the {@link #inodeStore}
    */
   public void clear() {
-    map.clear();
+    inodeStore.clear();
   }
 }
