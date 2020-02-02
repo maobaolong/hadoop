@@ -25,7 +25,6 @@ import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
 import org.apache.hadoop.hdfs.server.namenode.metastore.InodeStore;
-import org.apache.hadoop.hdfs.server.namenode.metastore.heap.HeapInodeStore;
 
 /**
  * Storing all the {@link INode}s and maintaining the mapping between INode ID
@@ -33,8 +32,7 @@ import org.apache.hadoop.hdfs.server.namenode.metastore.heap.HeapInodeStore;
 */
 public class INodeMap {
 
-  static INodeMap newInstance(INodeDirectory rootDir) {
-    InodeStore inodeStore = new HeapInodeStore(rootDir);
+  static INodeMap newInstance(InodeStore inodeStore) {
     return new INodeMap(inodeStore);
   }
 

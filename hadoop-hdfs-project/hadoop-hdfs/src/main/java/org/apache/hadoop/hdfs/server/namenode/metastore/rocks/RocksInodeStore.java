@@ -1,16 +1,31 @@
 package org.apache.hadoop.hdfs.server.namenode.metastore.rocks;
 
+import org.apache.hadoop.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.utils.db.DBStore;
+import org.apache.hadoop.hdds.utils.db.DBStoreBuilder;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.hdfs.server.namenode.INode;
+import org.apache.hadoop.hdfs.server.namenode.INodeDirectory;
 import org.apache.hadoop.hdfs.server.namenode.INodeWithAdditionalFields;
 import org.apache.hadoop.hdfs.server.namenode.metastore.InodeStore;
 
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.Iterator;
 
 public class RocksInodeStore implements InodeStore {
     private Table<INode, INodeWithAdditionalFields> inodeTable;
+
+    public RocksInodeStore(INodeDirectory rootDir) throws IOException {
+        // TODO(maobaolong): addCodec for INode and INodeWithAdditionalFields and all of their sub class.
+        //  remove the hardcode.
+        DBStore dbStore = DBStoreBuilder.newBuilder(new OzoneConfiguration()).setName("inode.db")
+            .setPath(Paths.get("./"))
+            .build();
+        inodeTable =
+            dbStore.getTable("inodeTable", INode.class, INodeWithAdditionalFields.class);
+    }
 
     @Override
     public void put(INode inode) throws IOException {

@@ -17,6 +17,8 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import org.apache.hadoop.hdfs.server.namenode.metastore.InodeStore;
+import org.apache.hadoop.hdfs.server.namenode.metastore.heap.HeapInodeStore;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.util.StringUtils;
 
@@ -276,7 +278,16 @@ public class FSDirectory implements Closeable {
     this.dirLock = new ReentrantReadWriteLock(true); // fair
     this.inodeId = new INodeId();
     rootDir = createRoot(ns);
-    inodeMap = INodeMap.newInstance(rootDir);
+    // TODO(maobaolong): put the config key to the right place.
+    try {
+      InodeStore inodeStore = (InodeStore) conf.getClass("inode.store.impl", HeapInodeStore.class).getConstructor(INodeDirectory.class)
+          .newInstance(rootDir);
+      inodeMap = INodeMap.newInstance(inodeStore);
+    } catch (Exception e) {
+      LOG.error("inode store initialized failed", e);
+      throw new IOException("inode store initialized failed");
+    }
+
     this.isPermissionEnabled = conf.getBoolean(
       DFSConfigKeys.DFS_PERMISSIONS_ENABLED_KEY,
       DFSConfigKeys.DFS_PERMISSIONS_ENABLED_DEFAULT);
