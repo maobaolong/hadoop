@@ -22,9 +22,11 @@ public class RocksInodeStore implements InodeStore {
         //  remove the hardcode.
         DBStore dbStore = DBStoreBuilder.newBuilder(new OzoneConfiguration()).setName("inode.db")
             .setPath(Paths.get("./"))
+            .addTable("inodeTable")
             .build();
         inodeTable =
             dbStore.getTable("inodeTable", INode.class, INodeWithAdditionalFields.class);
+        this.put(rootDir);
     }
 
     @Override
