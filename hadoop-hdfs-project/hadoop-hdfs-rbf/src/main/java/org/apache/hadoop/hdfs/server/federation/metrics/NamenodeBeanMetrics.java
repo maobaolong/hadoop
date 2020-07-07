@@ -706,4 +706,9 @@ public class NamenodeBeanMetrics
   public int getNumEncryptionZones() {
     return 0;
   }
+
+  @Override  //NameNodeMXBean
+  public String getScmId() {
+    return "N/A";
+  }
 }

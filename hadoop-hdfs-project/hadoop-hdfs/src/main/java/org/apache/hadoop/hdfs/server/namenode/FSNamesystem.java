@@ -90,6 +90,10 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_REPLICATION_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LISTING_LIMIT;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LISTING_LIMIT_DEFAULT;
 
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.scm.protocol.ScmBlockLocationProtocol;
+import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
+import org.apache.hadoop.hdds.scm.protocol.ScmClient;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_STORAGE_POLICY_ENABLED_KEY;
 import static org.apache.hadoop.hdfs.server.namenode.FSDirStatAndListingOp.*;
@@ -589,6 +593,8 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   private boolean resourceLowSafeMode = false;
   private String nameNodeHostName = null;
 
+  private final ScmClient scmClient;
+
   /**
    * Notify that loading of this FSDirectory is complete, and
    * it is imageLoaded for use
@@ -798,6 +804,12 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       }
 
       // block manager needs the haEnabled initialized
+      OzoneConfiguration o3Conf = OzoneConfiguration.of(conf);
+      ScmBlockLocationProtocol scmBlockClient =
+          ScmClient.getScmBlockClient(o3Conf);
+      StorageContainerLocationProtocol scmContainerClient =
+          ScmClient.getScmContainerClient(o3Conf);
+      this.scmClient = new ScmClient(scmBlockClient, scmContainerClient);
       this.blockManager = new BlockManager(this, haEnabled, conf);
       this.datanodeStatistics = blockManager.getDatanodeManager().getDatanodeStatistics();
 
@@ -929,6 +941,13 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       close();
       throw re;
     }
+  }
+
+  /**
+   * Return scmClient.
+   */
+  public ScmClient getScmClient() {
+    return scmClient;
   }
 
   @VisibleForTesting
@@ -5031,6 +5050,17 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   @Metric
   public String getHAState() {
     return haContext.getState().toString();
+  }
+
+  @Override  //NameNodeMXBean
+  public String getScmId() {
+    try {
+      return scmClient != null && scmClient.getBlockClient() != null ?
+          scmClient.getBlockClient().getScmInfo().getScmId() :
+          "N/A";
+    } catch (IOException e) {
+      return "N/A";
+    }
   }
 
   // HA-only metric

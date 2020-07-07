@@ -303,4 +303,5 @@ public interface NameNodeMXBean {
    */
   String getNameDirSize();
 
+  String getScmId();
 }
