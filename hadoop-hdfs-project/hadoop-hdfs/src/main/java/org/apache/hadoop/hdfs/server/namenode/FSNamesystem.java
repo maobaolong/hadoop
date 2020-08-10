@@ -90,7 +90,13 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_REPLICATION_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LISTING_LIMIT;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LISTING_LIMIT_DEFAULT;
 
+import org.apache.hadoop.conf.StorageUnit;
+import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
+import org.apache.hadoop.hdds.scm.container.common.helpers.AllocatedBlock;
+import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
+import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.scm.protocol.ScmBlockLocationProtocol;
 import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
 import org.apache.hadoop.hdds.scm.protocol.ScmClient;
@@ -110,6 +116,11 @@ import org.apache.hadoop.hdfs.protocol.SnapshotDiffReportListing;
 import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport;
 import org.apache.hadoop.hdfs.server.namenode.metrics.ReplicatedBlocksMBean;
 import org.apache.hadoop.hdfs.server.protocol.SlowDiskReports;
+
+import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_KEY_PREALLOCATION_BLOCKS_MAX;
+import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_KEY_PREALLOCATION_BLOCKS_MAX_DEFAULT;
+import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_SCM_BLOCK_SIZE;
+import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_SCM_BLOCK_SIZE_DEFAULT;
 import static org.apache.hadoop.util.Time.now;
 import static org.apache.hadoop.util.Time.monotonicNow;
 import static org.apache.hadoop.hdfs.server.namenode.top.metrics.TopMetrics.TOPMETRICS_METRICS_SOURCE_NAME;
@@ -302,6 +313,9 @@ import org.apache.hadoop.metrics2.lib.MetricsRegistry;
 import org.apache.hadoop.metrics2.lib.MutableRatesWithAggregation;
 import org.apache.hadoop.metrics2.util.MBeans;
 import org.apache.hadoop.net.Node;
+import org.apache.hadoop.ozone.om.exceptions.OMException;
+import org.apache.hadoop.ozone.om.helpers.OmKeyArgs;
+import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfo;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
@@ -594,6 +608,8 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   private String nameNodeHostName = null;
 
   private final ScmClient scmClient;
+  private final long scmBlockSize;
+  private final int preallocateBlocksMax;
 
   /**
    * Notify that loading of this FSDirectory is complete, and
@@ -803,13 +819,20 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
             "must not be specified if HA is not enabled.");
       }
 
-      // block manager needs the haEnabled initialized
       OzoneConfiguration o3Conf = OzoneConfiguration.of(conf);
       ScmBlockLocationProtocol scmBlockClient =
           ScmClient.getScmBlockClient(o3Conf);
       StorageContainerLocationProtocol scmContainerClient =
           ScmClient.getScmContainerClient(o3Conf);
       this.scmClient = new ScmClient(scmBlockClient, scmContainerClient);
+      this.scmBlockSize = (long) conf
+          .getStorageSize(OZONE_SCM_BLOCK_SIZE, OZONE_SCM_BLOCK_SIZE_DEFAULT,
+              StorageUnit.BYTES);
+      this.preallocateBlocksMax = conf.getInt(
+          OZONE_KEY_PREALLOCATION_BLOCKS_MAX,
+          OZONE_KEY_PREALLOCATION_BLOCKS_MAX_DEFAULT);
+
+      // block manager needs the haEnabled initialized
       this.blockManager = new BlockManager(this, haEnabled, conf);
       this.datanodeStatistics = blockManager.getDatanodeManager().getDatanodeStatistics();
 
@@ -8242,6 +8265,51 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
         getEffectiveLayoutVersion())) {
       throw new UnsupportedActionException(operationName + " not supported.");
     }
+  }
+
+  public OmKeyLocationInfo allocateBlock(OmKeyArgs args, long clientID,
+      ExcludeList excludeList)
+      throws IOException {
+
+    Preconditions.checkNotNull(args);
+    List<OmKeyLocationInfo> locationInfos =
+        allocateBlock(excludeList, scmBlockSize);
+
+    return locationInfos.get(0);
+  }
+
+  private List<OmKeyLocationInfo> allocateBlock(
+      ExcludeList excludeList, long requestedSize) throws IOException {
+    int numBlocks = Math.min((int) ((requestedSize - 1) / scmBlockSize + 1),
+        preallocateBlocksMax);
+    List<OmKeyLocationInfo> locationInfos = new ArrayList<>(numBlocks);
+    String remoteUser = getRemoteUser().getShortUserName();
+    List<AllocatedBlock> allocatedBlocks;
+    try {
+      // TODO(baoloongmao): fix hardcode
+      allocatedBlocks = scmClient.getBlockClient()
+          .allocateBlock(scmBlockSize, numBlocks,
+              HddsProtos.ReplicationType.RATIS,
+              HddsProtos.ReplicationFactor.THREE,
+              getNamespaceInfo().getClusterID(),
+              excludeList);
+    } catch (SCMException ex) {
+      if (ex.getResult()
+          .equals(SCMException.ResultCodes.SAFE_MODE_EXCEPTION)) {
+        throw new OMException(ex.getMessage(), OMException.ResultCodes.SCM_IN_SAFE_MODE);
+      }
+      throw ex;
+    }
+    for (AllocatedBlock allocatedBlock : allocatedBlocks) {
+      OmKeyLocationInfo.Builder builder = new OmKeyLocationInfo.Builder()
+          .setBlockID(new BlockID(allocatedBlock.getBlockID()))
+          .setLength(scmBlockSize)
+          .setOffset(0)
+          .setPipeline(allocatedBlock.getPipeline());
+      // TODO(baoloongmao): add block Token later
+      locationInfos.add(builder.build());
+    }
+    return locationInfos;
   }
 }
 

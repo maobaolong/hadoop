@@ -812,6 +812,11 @@
       </dependency>
       <dependency>
         <groupId>org.apache.hadoop</groupId>
+        <version>${hdds.version}</version>
+        <artifactId>hadoop-ozone-common</artifactId>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop</groupId>
         <artifactId>hadoop-hdds-common</artifactId>
         <version>${hdds.version}</version>
       </dependency>

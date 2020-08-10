@@ -36,6 +36,7 @@ import "encryption.proto";
 import "inotify.proto";
 import "erasurecoding.proto";
 import "HAServiceProtocol.proto";
+import "OmClientProtocol.proto";
 
 /**
  * The ClientNamenodeProtocol Service defines the interface between a client 
@@ -1044,4 +1045,5 @@ service ClientNamenodeProtocol {
       returns(SatisfyStoragePolicyResponseProto);
   rpc getHAServiceState(HAServiceStateRequestProto)
       returns(HAServiceStateResponseProto);
+  rpc allocateBlock(AllocateBlockRequest) returns(AllocateBlockResponse);
 }
