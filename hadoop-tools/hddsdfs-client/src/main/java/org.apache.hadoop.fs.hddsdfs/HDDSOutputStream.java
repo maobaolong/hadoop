@@ -37,7 +37,6 @@ import org.apache.hadoop.io.retry.RetryPolicy;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor;
 import org.apache.hadoop.hdds.scm.XceiverClientManager;
-import org.apache.hadoop.ozone.om.helpers.OpenKeySession;
 import org.apache.ratis.protocol.AlreadyClosedException;
 import org.apache.ratis.protocol.RaftRetryFailureException;
 import org.slf4j.Logger;
@@ -122,7 +121,7 @@ public class HDDSOutputStream extends OutputStream {
   }
 
   @SuppressWarnings({"parameternumber", "squid:S00107"})
-  public HDDSOutputStream(String src, OpenKeySession handler,
+  public HDDSOutputStream(String src,
                          XceiverClientManager xceiverClientManager,
                          DFSClient omClient, int chunkSize,
                          String requestId, ReplicationFactor factor, ReplicationType type,
@@ -512,7 +511,6 @@ public class HDDSOutputStream extends OutputStream {
    * Builder class of KeyOutputStream.
    */
   public static class Builder {
-    private OpenKeySession openHandler;
     private XceiverClientManager xceiverManager;
     private DFSClient omClient;
     private int chunkSize;
@@ -530,11 +528,6 @@ public class HDDSOutputStream extends OutputStream {
     private int maxRetryCount;
     private long retryInterval;
     private String src;
-
-    public Builder setHandler(OpenKeySession handler) {
-      this.openHandler = handler;
-      return this;
-    }
 
     public Builder setXceiverClientManager(XceiverClientManager manager) {
       this.xceiverManager = manager;
@@ -617,7 +610,7 @@ public class HDDSOutputStream extends OutputStream {
     }
 
     public HDDSOutputStream build() {
-      return new HDDSOutputStream(src, openHandler, xceiverManager, omClient,
+      return new HDDSOutputStream(src, xceiverManager, omClient,
           chunkSize, requestID, factor, type,
           streamBufferSize, streamBufferFlushSize, streamBufferFlushDelay,
           streamBufferMaxSize,

@@ -22,13 +22,12 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.OzoneConsts;
-import org.apache.hadoop.ozone.om.OMConfigKeys;
-import org.apache.hadoop.ozone.web.utils.OzoneUtils;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.util.DataChecksum;
 import org.apache.hadoop.util.Progressable;
 import org.apache.htrace.core.TraceScope;
 import org.apache.ratis.protocol.ClientId;
+import org.apache.ratis.util.TimeDuration;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -36,6 +35,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.EnumSet;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 public class HDDSClient extends DFSClient {
   private static final int CREATE_RETRY_COUNT = 10;
@@ -59,7 +59,6 @@ public class HDDSClient extends DFSClient {
   private final long retryInterval;
   private Text dtService;
   private final boolean topologyAwareReadEnabled;
-  private final boolean checkKeyNameEnabled;
 
   public HDDSClient(Configuration conf)
       throws IOException {
@@ -156,15 +155,18 @@ public class HDDSClient extends DFSClient {
     maxRetryCount =
         conf.getInt(OzoneConfigKeys.OZONE_CLIENT_MAX_RETRIES, OzoneConfigKeys.
             OZONE_CLIENT_MAX_RETRIES_DEFAULT);
-    retryInterval = OzoneUtils.getTimeDurationInMS(conf,
+    TimeUnit defaultTimeUnit =
+        OzoneConfigKeys.OZONE_CLIENT_RETRY_INTERVAL_DEFAULT.getUnit();
+    long timeDurationInDefaultUnit = conf.getTimeDuration(
         OzoneConfigKeys.OZONE_CLIENT_RETRY_INTERVAL,
-        OzoneConfigKeys.OZONE_CLIENT_RETRY_INTERVAL_DEFAULT);
+        OzoneConfigKeys.OZONE_CLIENT_RETRY_INTERVAL_DEFAULT.getDuration(),
+        defaultTimeUnit);
+    retryInterval = TimeDuration
+        .valueOf(timeDurationInDefaultUnit, defaultTimeUnit)
+        .toLong(TimeUnit.MILLISECONDS);
     topologyAwareReadEnabled = conf.getBoolean(
         OzoneConfigKeys.OZONE_NETWORK_TOPOLOGY_AWARE_READ_KEY,
         OzoneConfigKeys.OZONE_NETWORK_TOPOLOGY_AWARE_READ_DEFAULT);
-    checkKeyNameEnabled = conf.getBoolean(
-        OMConfigKeys.OZONE_OM_KEYNAME_CHARACTER_CHECK_ENABLED_KEY,
-        OMConfigKeys.OZONE_OM_KEYNAME_CHARACTER_CHECK_ENABLED_DEFAULT);
   }
 
   @Override
