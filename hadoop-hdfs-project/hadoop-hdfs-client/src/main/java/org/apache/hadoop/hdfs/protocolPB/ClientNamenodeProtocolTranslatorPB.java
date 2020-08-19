@@ -50,7 +50,8 @@ import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.ha.HAServiceProtocol;
 import org.apache.hadoop.ha.proto.HAServiceProtocolProtos.HAServiceStateProto;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
+import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.AddBlockFlag;
 import org.apache.hadoop.hdfs.inotify.EventBatchList;
@@ -236,8 +237,6 @@ import org.apache.hadoop.ipc.ProtocolMetaInterface;
 import org.apache.hadoop.ipc.ProtocolTranslator;
 import org.apache.hadoop.ipc.RPC;
 import org.apache.hadoop.ipc.RpcClientUtil;
-import org.apache.hadoop.ozone.om.helpers.OmKeyArgs;
-import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfo;
 import org.apache.hadoop.security.proto.SecurityProtos.CancelDelegationTokenRequestProto;
 import org.apache.hadoop.security.proto.SecurityProtos.GetDelegationTokenRequestProto;
 import org.apache.hadoop.security.proto.SecurityProtos.GetDelegationTokenResponseProto;
@@ -2001,40 +2000,25 @@ public class ClientNamenodeProtocolTranslatorPB implements
   }
 
   @Override
-  public OmKeyLocationInfo allocateBlock(OmKeyArgs args, long clientId,
-                                          ExcludeList excludeList)
+  public HDDSLocationInfo allocateBlock(String src, long clientId,
+                                        ExcludeList excludeList)
       throws IOException {
-    OzoneManagerProtocolProtos.KeyArgs.Builder keyArgs =
-        OzoneManagerProtocolProtos.KeyArgs
-        .newBuilder()
-        .setVolumeName(args.getVolumeName())
-        .setBucketName(args.getBucketName())
-        .setKeyName(args.getKeyName())
-        .setDataSize(args.getDataSize());
-
-    if (args.getFactor() != null) {
-      keyArgs.setFactor(args.getFactor());
-    }
-
-    if (args.getType() != null) {
-      keyArgs.setType(args.getType());
-    }
-    OzoneManagerProtocolProtos.AllocateBlockRequest req =
-        OzoneManagerProtocolProtos.AllocateBlockRequest.newBuilder()
-            .setKeyArgs(keyArgs)
+    ClientNamenodeSCMProtocolProtos.AllocateBlockRequest req =
+        ClientNamenodeSCMProtocolProtos.AllocateBlockRequest.newBuilder()
+            .setSrc(src)
             .setClientID(clientId)
             .setExcludeList(excludeList.getProtoBuf())
             .build();
     try {
-      OzoneManagerProtocolProtos.KeyLocation keyLocation =
-          rpcProxy.allocateBlock(null, req).getKeyLocation();
-      OmKeyLocationInfo info = OmKeyLocationInfo.getFromProtobuf(keyLocation);
+      ClientNamenodeSCMProtocolProtos.HddsLocation hddsLocation =
+          rpcProxy.allocateBlock(null, req).getHddsLocation();
+      HDDSLocationInfo info = HDDSLocationInfo.getFromProtobuf(hddsLocation);
       // TODO(baoloongmao): bring token back later
 //      if(keyLocation.hasToken()) {
 //        info.token = (Token<OzoneBlockTokenIdentifier>)
 //            OzonePBHelper.tokenFromProto(keyLocation.getToken());
 //      }
-      info.setCreateVersion(keyLocation.getCreateVersion());
+      info.setCreateVersion(hddsLocation.getCreateVersion());
       return info;
     } catch (ServiceException e) {
       throw ProtobufHelper.getRemoteException(e);

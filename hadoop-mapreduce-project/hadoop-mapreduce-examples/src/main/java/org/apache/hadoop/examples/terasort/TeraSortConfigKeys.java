@@ -18,16 +18,11 @@
 
 package org.apache.hadoop.examples.terasort;
 
-import org.apache.hadoop.classification.InterfaceAudience.Private;
-import org.apache.hadoop.classification.InterfaceStability.Unstable;
-
 /**
  * <p>
  * TeraSort configurations.
  * </p>
  */
-@Private
-@Unstable
 public enum TeraSortConfigKeys {
 
   NUM_ROWS("mapreduce.terasort.num-rows",
