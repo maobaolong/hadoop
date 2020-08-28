@@ -33,7 +33,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.ha.HAServiceProtocol;
 import org.apache.hadoop.ha.proto.HAServiceProtocolProtos;
 import org.apache.hadoop.ha.proto.HAServiceProtocolProtos.HAServiceStateProto;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.AddBlockFlag;
 import org.apache.hadoop.fs.ContentSummary;
@@ -281,7 +281,6 @@ import org.apache.hadoop.hdfs.security.token.block.DataEncryptionKey;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.io.EnumSetWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.ozone.om.helpers.OmKeyArgs;
 import org.apache.hadoop.security.proto.SecurityProtos.CancelDelegationTokenRequestProto;
 import org.apache.hadoop.security.proto.SecurityProtos.CancelDelegationTokenResponseProto;
 import org.apache.hadoop.security.proto.SecurityProtos.GetDelegationTokenRequestProto;
@@ -1958,26 +1957,19 @@ public class ClientNamenodeProtocolServerSideTranslatorPB implements
   }
 
   @Override
-  public OzoneManagerProtocolProtos.AllocateBlockResponse allocateBlock(
+  public ClientNamenodeSCMProtocolProtos.AllocateBlockResponse allocateBlock(
       RpcController controller,
-      OzoneManagerProtocolProtos.AllocateBlockRequest request)
+      ClientNamenodeSCMProtocolProtos.AllocateBlockRequest request)
       throws ServiceException {
     try {
-      OzoneManagerProtocolProtos.KeyArgs keyArgs = request.getKeyArgs();
-      OmKeyArgs omKeyArgs = new OmKeyArgs.Builder()
-          .setVolumeName(keyArgs.getVolumeName())
-          .setBucketName(keyArgs.getBucketName())
-          .setKeyName(keyArgs.getKeyName())
-          .setRefreshPipeline(true)
-          .build();
       ExcludeList excludeList = ExcludeList.getFromProtoBuf(
           request.getExcludeList());
-      OzoneManagerProtocolProtos.KeyLocation
-          keyLocation =
-          server.allocateBlock(omKeyArgs, request.getClientID(), excludeList)
+      ClientNamenodeSCMProtocolProtos.HddsLocation
+          hddsLocation =
+          server.allocateBlock(request.getSrc(), request.getClientID(), excludeList)
               .getProtobuf();
-      return OzoneManagerProtocolProtos.AllocateBlockResponse.newBuilder()
-          .setKeyLocation(keyLocation)
+      return ClientNamenodeSCMProtocolProtos.AllocateBlockResponse.newBuilder()
+          .setHddsLocation(hddsLocation)
           .build();
     } catch (IOException e) {
       throw new ServiceException(e);

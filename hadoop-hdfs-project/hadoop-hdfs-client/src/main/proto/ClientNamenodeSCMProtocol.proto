@@ -1,0 +1,64 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * These .proto interfaces are private and unstable.
+ * Please see http://wiki.apache.org/hadoop/Compatibility
+ * for what changes are allowed for a *unstable* .proto interface.
+ */
+
+syntax = "proto2";
+option java_package = "org.apache.hadoop.hdds.protocol.proto";
+option java_outer_classname = "ClientNamenodeSCMProtocolProtos";
+option java_generate_equals_and_hash = true;
+package hadoop.hdfs;
+
+import "Security.proto";
+import "hdds.proto";
+
+message HddsLocation {
+    required hadoop.hdds.BlockID blockID = 1;
+    required uint64 offset = 3;
+    required uint64 length = 4;
+    // indicated at which version this block gets created.
+    optional uint64 createVersion = 5;
+    optional hadoop.common.TokenProto token = 6;
+    // Walk around to include pipeline info for client read/write
+    // without talking to scm.
+    // NOTE: the pipeline info may change after pipeline close.
+    // So eventually, we will have to change back to call scm to
+    // get the up to date pipeline information. This will need o3fs
+    // provide not only a OM delegation token but also a SCM delegation token
+    optional hadoop.hdds.Pipeline pipeline = 7;
+}
+
+message HddsLocationList {
+    optional uint64 version = 1;
+    repeated HddsLocation hddsLocations = 2;
+}
+
+message AllocateBlockRequest {
+    required string src = 1;
+    required uint64 clientID = 2;
+    optional hadoop.hdds.ExcludeListProto excludeList = 3;
+    optional HddsLocation hddsLocation = 4;
+}
+
+message AllocateBlockResponse {
+    optional HddsLocation hddsLocation = 2;
+}

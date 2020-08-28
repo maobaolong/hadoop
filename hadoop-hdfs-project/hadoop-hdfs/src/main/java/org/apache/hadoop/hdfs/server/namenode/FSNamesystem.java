@@ -91,6 +91,7 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LI
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LISTING_LIMIT_DEFAULT;
 
 import org.apache.hadoop.conf.StorageUnit;
+import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
@@ -313,9 +314,6 @@ import org.apache.hadoop.metrics2.lib.MetricsRegistry;
 import org.apache.hadoop.metrics2.lib.MutableRatesWithAggregation;
 import org.apache.hadoop.metrics2.util.MBeans;
 import org.apache.hadoop.net.Node;
-import org.apache.hadoop.ozone.om.exceptions.OMException;
-import org.apache.hadoop.ozone.om.helpers.OmKeyArgs;
-import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfo;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
@@ -5078,8 +5076,8 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   @Override  //NameNodeMXBean
   public String getScmId() {
     try {
-      return scmClient != null && scmClient.getBlockClient() != null ?
-          scmClient.getBlockClient().getScmInfo().getScmId() :
+      return scmClient != null && scmClient.getContainerClient() != null ?
+          scmClient.getContainerClient().getScmInfo().getScmId() :
           "N/A";
     } catch (IOException e) {
       return "N/A";
@@ -8267,22 +8265,21 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     }
   }
 
-  public OmKeyLocationInfo allocateBlock(OmKeyArgs args, long clientID,
-      ExcludeList excludeList)
+  public HDDSLocationInfo allocateBlock(String src, long clientID,
+                                        ExcludeList excludeList)
       throws IOException {
-
-    Preconditions.checkNotNull(args);
-    List<OmKeyLocationInfo> locationInfos =
+    // TODO(baoloongmao): replace args to src and fileId
+    List<HDDSLocationInfo> locationInfos =
         allocateBlock(excludeList, scmBlockSize);
 
     return locationInfos.get(0);
   }
 
-  private List<OmKeyLocationInfo> allocateBlock(
+  private List<HDDSLocationInfo> allocateBlock(
       ExcludeList excludeList, long requestedSize) throws IOException {
     int numBlocks = Math.min((int) ((requestedSize - 1) / scmBlockSize + 1),
         preallocateBlocksMax);
-    List<OmKeyLocationInfo> locationInfos = new ArrayList<>(numBlocks);
+    List<HDDSLocationInfo> locationInfos = new ArrayList<>(numBlocks);
     String remoteUser = getRemoteUser().getShortUserName();
     List<AllocatedBlock> allocatedBlocks;
     try {
@@ -8296,12 +8293,12 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     } catch (SCMException ex) {
       if (ex.getResult()
           .equals(SCMException.ResultCodes.SAFE_MODE_EXCEPTION)) {
-        throw new OMException(ex.getMessage(), OMException.ResultCodes.SCM_IN_SAFE_MODE);
+        throw new IOException("SCM_IN_SAFE_MODE", ex);
       }
       throw ex;
     }
     for (AllocatedBlock allocatedBlock : allocatedBlocks) {
-      OmKeyLocationInfo.Builder builder = new OmKeyLocationInfo.Builder()
+      HDDSLocationInfo.Builder builder = new HDDSLocationInfo.Builder()
           .setBlockID(new BlockID(allocatedBlock.getBlockID()))
           .setLength(scmBlockSize)
           .setOffset(0)

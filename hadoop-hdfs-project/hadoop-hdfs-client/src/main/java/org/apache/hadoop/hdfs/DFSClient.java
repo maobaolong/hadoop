@@ -94,6 +94,7 @@ import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsCreateModes;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.ha.HAServiceProtocol;
+import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.NameNodeProxiesClient.ProxyAndInfo;
 import org.apache.hadoop.hdfs.client.HdfsClientConfigKeys;
@@ -174,8 +175,6 @@ import org.apache.hadoop.ipc.RetriableException;
 import org.apache.hadoop.ipc.RpcNoSuchMethodException;
 import org.apache.hadoop.net.DNS;
 import org.apache.hadoop.net.NetUtils;
-import org.apache.hadoop.ozone.om.helpers.OmKeyArgs;
-import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfo;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.SecretManager.InvalidToken;
@@ -473,7 +472,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     return clientName;
   }
 
-  void checkOpen() throws IOException {
+  protected void checkOpen() throws IOException {
     if (!clientRunning) {
       throw new IOException("Filesystem closed");
     }
@@ -489,7 +488,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
   }
 
   /** Get a lease and start automatic renewal */
-  private void beginFileLease(final long inodeId, final DFSOutputStream out)
+  protected void beginFileLease(final long inodeId, final DFSOutputStream out)
       throws IOException {
     synchronized (filesBeingWritten) {
       putFileBeingWritten(inodeId, out);
@@ -1168,7 +1167,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
         progress, buffersize, checksumOpt, null);
   }
 
-  private FsPermission applyUMask(FsPermission permission) {
+  protected FsPermission applyUMask(FsPermission permission) {
     if (permission == null) {
       permission = FsPermission.getFileDefault();
     }
@@ -1225,7 +1224,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     return result;
   }
 
-  private String[] getFavoredNodesStr(InetSocketAddress[] favoredNodes) {
+  protected String[] getFavoredNodesStr(InetSocketAddress[] favoredNodes) {
     String[] favoredNodeStrs = null;
     if (favoredNodes != null) {
       favoredNodeStrs = new String[favoredNodes.length];
@@ -3071,7 +3070,7 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     return saslClient;
   }
 
-  TraceScope newPathTraceScope(String description, String path) {
+  public TraceScope newPathTraceScope(String description, String path) {
     TraceScope scope = tracer.newScope(description);
     if (path != null) {
       scope.addKVAnnotation("path", path);
@@ -3212,9 +3211,9 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     return namenode.getHAServiceState();
   }
 
-  public OmKeyLocationInfo allocateBlock(OmKeyArgs args, long clientId,
-      ExcludeList excludeList)
+  public HDDSLocationInfo allocateBlock(String src, long clientId,
+                                                     ExcludeList excludeList)
       throws IOException {
-    return namenode.allocateBlock(args, clientId, excludeList);
+    return namenode.allocateBlock(src, clientId, excludeList);
   }
 }

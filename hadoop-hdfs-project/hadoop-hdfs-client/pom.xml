@@ -36,7 +36,13 @@ https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <dependencies>
     <dependency>
       <groupId>org.apache.hadoop</groupId>
-      <artifactId>hadoop-ozone-common</artifactId>
+      <artifactId>hadoop-hdds-common</artifactId>
+      <exclusions>
+        <exclusion>
+          <artifactId>hadoop-hdfs</artifactId>
+          <groupId>org.apache.hadoop</groupId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.squareup.okhttp</groupId>
@@ -163,7 +169,7 @@ https://maven.apache.org/xsd/maven-4.0.0.xsd">
                   <include>inotify.proto</include>
                   <include>erasurecoding.proto</include>
                   <include>ReconfigurationProtocol.proto</include>
-                  <include>OmClientProtocol.proto</include>
+                  <include>ClientNamenodeSCMProtocol.proto</include>
                   <include>hdds.proto</include>
                 </includes>
               </source>

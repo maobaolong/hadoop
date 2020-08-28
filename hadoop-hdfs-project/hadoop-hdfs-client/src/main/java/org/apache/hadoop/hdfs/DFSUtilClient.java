@@ -781,13 +781,13 @@ public class DFSUtilClient {
           "Invalid URI for NameNode address (check %s): %s has no authority.",
           FileSystem.FS_DEFAULT_NAME_KEY, filesystemURI.toString()));
     }
-    if (!HdfsConstants.HDFS_URI_SCHEME.equalsIgnoreCase(
-        filesystemURI.getScheme())) {
-      throw new IllegalArgumentException(String.format(
-          "Invalid URI for NameNode address (check %s): " +
-          "%s is not of scheme '%s'.", FileSystem.FS_DEFAULT_NAME_KEY,
-          filesystemURI.toString(), HdfsConstants.HDFS_URI_SCHEME));
-    }
+//    if (!HdfsConstants.HDFS_URI_SCHEME.equalsIgnoreCase(
+//        filesystemURI.getScheme())) {
+//      throw new IllegalArgumentException(String.format(
+//          "Invalid URI for NameNode address (check %s): " +
+//          "%s is not of scheme '%s'.", FileSystem.FS_DEFAULT_NAME_KEY,
+//          filesystemURI.toString(), HdfsConstants.HDFS_URI_SCHEME));
+//    }
     return getNNAddress(authority);
   }
 

@@ -36,7 +36,7 @@ import "encryption.proto";
 import "inotify.proto";
 import "erasurecoding.proto";
 import "HAServiceProtocol.proto";
-import "OmClientProtocol.proto";
+import "ClientNamenodeSCMProtocol.proto";
 
 /**
  * The ClientNamenodeProtocol Service defines the interface between a client 
