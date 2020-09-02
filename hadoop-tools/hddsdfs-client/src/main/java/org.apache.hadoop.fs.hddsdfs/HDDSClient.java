@@ -266,19 +266,7 @@ public class HDDSClient extends DFSClient {
                              boolean verifyChecksum) throws IOException {
     checkOpen();
     String src = fd.getPath();
-    try (TraceScope ignored = newPathTraceScope("newDFSInputStream", src)) {
-      HDDSFileStatus s = getHDDSLocatedFileInfo(src, true);
-//      fd.verify(s); // check invariants in path handle
-      HDDSLocatedBlocks locatedBlocks = s.getLocatedBlocks();
-      return HDDSInputStream.getFromSrc(src, locatedBlocks, xceiverClientManager, verifyChecksum, str -> {
-        try {
-          return getHDDSLocatedFileInfo(str, true);
-        } catch (IOException e) {
-          LOG.error("Unable to lookup key {} on retry.", str, e);
-          return null;
-        }
-      });
-    }
+    return openHDDS(src, buffersize, verifyChecksum);
   }
 
   public HDDSInputStream openHDDS(String src, int buffersize,
