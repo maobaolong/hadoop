@@ -196,7 +196,7 @@ public class HDDSClient extends DFSClient {
                                              DataChecksum checksum)
       throws IOException {
     try (TraceScope ignored =
-             newPathTraceScope("newStreamForCreate", src.toString())) {
+             newPathTraceScope("newStreamForCreate", src)) {
       HdfsFileStatus stat = null;
 
       masked = applyUMask(masked);
