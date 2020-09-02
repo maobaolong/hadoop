@@ -91,30 +91,26 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LI
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LISTING_LIMIT_DEFAULT;
 
 import org.apache.hadoop.conf.StorageUnit;
+import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.container.common.helpers.AllocatedBlock;
+import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.scm.protocol.ScmBlockLocationProtocol;
 import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
 import org.apache.hadoop.hdds.scm.protocol.ScmClient;
-import org.apache.hadoop.hdfs.protocol.HdfsConstants;
+import org.apache.hadoop.hdfs.protocol.*;
+
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_STORAGE_POLICY_ENABLED_KEY;
 import static org.apache.hadoop.hdfs.server.namenode.FSDirStatAndListingOp.*;
 import static org.apache.hadoop.ha.HAServiceProtocol.HAServiceState.ACTIVE;
 import static org.apache.hadoop.ha.HAServiceProtocol.HAServiceState.OBSERVER;
 
-import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicyInfo;
 import org.apache.hadoop.hdfs.protocol.OpenFilesIterator.OpenFilesType;
-import org.apache.hadoop.hdfs.protocol.ReplicatedBlockStats;
-import org.apache.hadoop.hdfs.protocol.ECBlockGroupStats;
-import org.apache.hadoop.hdfs.protocol.OpenFileEntry;
-import org.apache.hadoop.hdfs.protocol.ZoneReencryptionStatus;
-import org.apache.hadoop.hdfs.protocol.SnapshotDiffReportListing;
-import org.apache.hadoop.hdfs.protocol.SnapshotDiffReport;
 import org.apache.hadoop.hdfs.server.namenode.metrics.ReplicatedBlocksMBean;
 import org.apache.hadoop.hdfs.server.protocol.SlowDiskReports;
 
@@ -207,36 +203,10 @@ import org.apache.hadoop.hdfs.DFSUtilClient;
 import org.apache.hadoop.hdfs.HAUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.UnknownCryptoProtocolVersionException;
-import org.apache.hadoop.hdfs.protocol.AddErasureCodingPolicyResponse;
-import org.apache.hadoop.hdfs.protocol.AlreadyBeingCreatedException;
-import org.apache.hadoop.hdfs.protocol.Block;
-import org.apache.hadoop.hdfs.protocol.BlockType;
-import org.apache.hadoop.hdfs.protocol.BlockStoragePolicy;
-import org.apache.hadoop.hdfs.protocol.CacheDirectiveEntry;
-import org.apache.hadoop.hdfs.protocol.CacheDirectiveInfo;
-import org.apache.hadoop.hdfs.protocol.CachePoolEntry;
-import org.apache.hadoop.hdfs.protocol.CachePoolInfo;
-import org.apache.hadoop.hdfs.protocol.ClientProtocol;
-import org.apache.hadoop.hdfs.protocol.DatanodeID;
-import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo.DatanodeInfoBuilder;
-import org.apache.hadoop.hdfs.protocol.DirectoryListing;
-import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
-import org.apache.hadoop.hdfs.protocol.EncryptionZone;
-import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants.DatanodeReportType;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants.ReencryptAction;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants.SafeModeAction;
-import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
-import org.apache.hadoop.hdfs.protocol.LastBlockWithStatus;
-import org.apache.hadoop.hdfs.protocol.LocatedBlock;
-import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
-import org.apache.hadoop.hdfs.protocol.RecoveryInProgressException;
-import org.apache.hadoop.hdfs.protocol.RollingUpgradeException;
-import org.apache.hadoop.hdfs.protocol.RollingUpgradeInfo;
-import org.apache.hadoop.hdfs.protocol.SnapshotAccessControlException;
-import org.apache.hadoop.hdfs.protocol.SnapshotException;
-import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.protocol.datatransfer.ReplaceDatanodeOnFailure;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
@@ -3591,6 +3561,14 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   }
 
   void commitOrCompleteLastBlock(
+      final INodeFile fileINode, final INodesInPath iip,
+      final Block commitBlock) throws IOException {
+    assert hasWriteLock();
+    Preconditions.checkArgument(fileINode.isUnderConstruction());
+    blockManager.commitOrCompleteLastBlock(fileINode, commitBlock, iip);
+  }
+
+  void hddsCommitOrCompleteLastBlock(
       final INodeFile fileINode, final INodesInPath iip,
       final Block commitBlock) throws IOException {
     assert hasWriteLock();
@@ -8265,18 +8243,25 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     }
   }
 
-  public HDDSLocationInfo allocateBlock(String src, long clientID,
-                                        ExcludeList excludeList)
+  public HDDSLocationInfo allocateBlock(String src, String clientName,
+                                        HDDSLocationInfo previous,
+                                        ExcludeList excludeList,
+                                        long fileId, long clientId)
       throws IOException {
     // TODO(baoloongmao): replace args to src and fileId
     List<HDDSLocationInfo> locationInfos =
-        allocateBlock(excludeList, scmBlockSize);
+        allocateBlock(src, clientName, previous, excludeList, fileId,
+            clientId, scmBlockSize);
 
     return locationInfos.get(0);
   }
 
-  private List<HDDSLocationInfo> allocateBlock(
-      ExcludeList excludeList, long requestedSize) throws IOException {
+  private List<HDDSLocationInfo> allocateBlock(String src, String clientName,
+       HDDSLocationInfo previous,
+       ExcludeList excludeList,
+       long fileId, long clientId, long requestedSize) throws IOException {
+    checkOperation(OperationCategory.WRITE);
+
     int numBlocks = Math.min((int) ((requestedSize - 1) / scmBlockSize + 1),
         preallocateBlocksMax);
     List<HDDSLocationInfo> locationInfos = new ArrayList<>(numBlocks);
@@ -8306,7 +8291,83 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       // TODO(baoloongmao): add block Token later
       locationInfos.add(builder.build());
     }
+    writeLock();
+    try {
+      checkOperation(OperationCategory.WRITE);
+      FSDirWriteFileOp.storeHDDSAllocatedBlock(
+          this, src, fileId, clientName, previous, locationInfos.get(0));
+    } finally {
+      writeUnlock("allocateBlock");
+    }
+    getEditLog().logSync();
     return locationInfos;
+  }
+
+  HDDSFileStatus getHDDSFileInfo(final String src, boolean resolveLink,
+                                 boolean needLocation, boolean needBlockToken) throws IOException {
+    // TODO(baoloongmao): get the blockID and related information from InodeFile
+    final String operationName = needBlockToken ? "openV2" : "getfileinfoV2";
+    checkOperation(OperationCategory.READ);
+    final FSPermissionChecker pc = getPermissionChecker();
+    HDDSFileStatus fileStatus = FSDirStatAndListingOp.getHDDSFileInfo(dir, pc, src, resolveLink, true, needBlockToken);
+    logAuditEvent(true, operationName, src);
+    return fileStatus;
+
+  }
+
+  protected Map<Long, ContainerWithPipeline> refreshPipeline(
+      Set<Long> containerIDs) throws IOException {
+    // TODO: fix Some tests that may not initialize container client
+    // The production should always have containerClient initialized.
+    if (scmClient.getContainerClient() == null ||
+        containerIDs == null || containerIDs.isEmpty()) {
+      return Collections.EMPTY_MAP;
+    }
+
+    Map<Long, ContainerWithPipeline> containerWithPipelineMap = new HashMap<>();
+
+    try {
+      List<ContainerWithPipeline> cpList = scmClient.getContainerClient().
+          getContainerWithPipelineBatch(new ArrayList<>(containerIDs));
+      for (ContainerWithPipeline cp : cpList) {
+        containerWithPipelineMap.put(
+            cp.getContainerInfo().getContainerID(), cp);
+      }
+      return containerWithPipelineMap;
+    } catch (IOException ioEx) {
+      LOG.debug("Get containerPipeline failed for {}",
+          containerIDs.toString(), ioEx);
+      throw new IOException("SCM_GET_PIPELINE_EXCEPTION", ioEx);
+    }
+  }
+
+  /**
+   * Complete in-progress write to the given file.
+   * @return true if successful, false if the client should continue to retry
+   *         (e.g if not all blocks have reached minimum replication yet)
+   * @throws IOException on error (eg lease mismatch, file not open, file deleted)
+   */
+  boolean completeHDDSFile(final String src, String holder,
+                       HDDSLocationInfo last, long fileId)
+      throws IOException {
+    boolean success = false;
+    checkOperation(OperationCategory.WRITE);
+    final FSPermissionChecker pc = getPermissionChecker();
+    writeLock();
+    try {
+      checkOperation(OperationCategory.WRITE);
+      checkNameNodeSafeMode("Cannot complete file " + src);
+      success = FSDirWriteFileOp.completeHDDSFile(this, pc, src, holder, last,
+          fileId);
+    } finally {
+      writeUnlock("completeFile");
+    }
+    getEditLog().logSync();
+    if (success) {
+      NameNode.stateChangeLog.info("DIR* completeFile: " + src
+          + " is closed by " + holder);
+    }
+    return success;
   }
 }
 

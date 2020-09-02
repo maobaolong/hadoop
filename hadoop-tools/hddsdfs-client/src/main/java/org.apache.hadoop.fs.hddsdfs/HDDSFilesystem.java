@@ -3,8 +3,10 @@ package org.apache.hadoop.fs.hddsdfs;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdfs.DFSInputStream;
 import org.apache.hadoop.hdfs.DFSOpsCountStatistics;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
+import org.apache.hadoop.hdfs.protocol.HdfsPathHandle;
 import org.apache.hadoop.util.Progressable;
 
 import java.io.IOException;
@@ -15,7 +17,23 @@ public class HDDSFilesystem extends DistributedFileSystem {
 
   @Override
   public FSDataInputStream open(Path f, int bufferSize) throws IOException {
-    return null;
+    statistics.incrementReadOps(1);
+    storageStatistics.incrementOpCounter(DFSOpsCountStatistics.OpType.OPEN);
+    Path absF = fixRelativePart(f);
+    return new FileSystemLinkResolver<FSDataInputStream>() {
+      @Override
+      public FSDataInputStream doCall(final Path p) throws IOException {
+        final HDDSInputStream hddsis = getHDDSClient().openHDDS(getPathName(p),
+            bufferSize, true);
+        return new FSDataInputStream(hddsis);
+      }
+
+      @Override
+      public FSDataInputStream next(final FileSystem fs, final Path p)
+          throws IOException {
+        return fs.open(p, bufferSize);
+      }
+    }.resolve(this, absF);
   }
 
   @Override
@@ -59,5 +77,18 @@ public class HDDSFilesystem extends DistributedFileSystem {
             replication, blockSize, progress, checksumOpt);
       }
     }.resolve(this, absF);
+  }
+
+  @Override
+  public FSDataInputStream open(PathHandle fd, int bufferSize)
+      throws IOException {
+    statistics.incrementReadOps(1);
+    storageStatistics.incrementOpCounter(DFSOpsCountStatistics.OpType.OPEN);
+    if (!(fd instanceof HdfsPathHandle)) {
+      fd = new HdfsPathHandle(fd.bytes());
+    }
+    HdfsPathHandle id = (HdfsPathHandle) fd;
+    final HDDSInputStream hddsis = getHDDSClient().openHDDS(id, bufferSize, true);
+    return new FSDataInputStream(hddsis);
   }
 }

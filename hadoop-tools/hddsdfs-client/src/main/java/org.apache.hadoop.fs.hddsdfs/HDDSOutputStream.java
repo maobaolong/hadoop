@@ -32,6 +32,7 @@ import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerExcep
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdfs.DFSClient;
+import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.io.retry.RetryPolicies;
 import org.apache.hadoop.io.retry.RetryPolicy;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType;
@@ -123,18 +124,19 @@ public class HDDSOutputStream extends OutputStream {
   @SuppressWarnings({"parameternumber", "squid:S00107"})
   public HDDSOutputStream(String src,
                          XceiverClientManager xceiverClientManager,
-                         DFSClient omClient, int chunkSize,
+                         DFSClient hddsClient, int chunkSize,
                          String requestId, ReplicationFactor factor, ReplicationType type,
                          int bufferSize, long bufferFlushSize, boolean isBufferFlushDelay,
                          long bufferMaxSize, long size, long watchTimeout,
                          ChecksumType checksumType, int bytesPerChecksum,
-                         int maxRetryCount, long retryInterval) {
+                         int maxRetryCount, long retryInterval,
+                         HdfsFileStatus stat) {
     blockOutputStreamEntryPool =
-        new BlockOutputStreamEntryPool(omClient, src, chunkSize, requestId, factor,
+        new BlockOutputStreamEntryPool(hddsClient, src, chunkSize, requestId, factor,
             type, bufferSize, bufferFlushSize, isBufferFlushDelay,
             bufferMaxSize, size,
             watchTimeout, checksumType, bytesPerChecksum,
-            xceiverClientManager, 0);
+            xceiverClientManager, 0, stat);
     // Retrieve the file encryption key info, null if file is not in
     // encrypted bucket.
     this.feInfo = null;
@@ -528,6 +530,7 @@ public class HDDSOutputStream extends OutputStream {
     private int maxRetryCount;
     private long retryInterval;
     private String src;
+    private HdfsFileStatus stat;
 
     public Builder setXceiverClientManager(XceiverClientManager manager) {
       this.xceiverManager = manager;
@@ -616,7 +619,12 @@ public class HDDSOutputStream extends OutputStream {
           streamBufferMaxSize,
           blockSize, watchTimeout, checksumType,
           bytesPerChecksum,
-          maxRetryCount, retryInterval);
+          maxRetryCount, retryInterval, stat);
+    }
+
+    public Builder setStat(HdfsFileStatus stat) {
+      this.stat = stat;
+      return this;
     }
   }
 

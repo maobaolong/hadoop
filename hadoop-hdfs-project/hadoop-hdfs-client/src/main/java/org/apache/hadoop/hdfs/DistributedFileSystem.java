@@ -134,7 +134,7 @@ public class DistributedFileSystem extends FileSystem
   private URI uri;
 
   protected DFSClient dfs;
-  private boolean verifyChecksum = true;
+  protected boolean verifyChecksum = true;
 
   protected DFSOpsCountStatistics storageStatistics;
 

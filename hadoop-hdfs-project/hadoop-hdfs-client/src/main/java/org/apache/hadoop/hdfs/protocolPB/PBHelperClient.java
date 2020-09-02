@@ -41,17 +41,15 @@ import com.google.protobuf.CodedInputStream;
 import org.apache.hadoop.crypto.CipherOption;
 import org.apache.hadoop.crypto.CipherSuite;
 import org.apache.hadoop.crypto.CryptoProtocolVersion;
+import org.apache.hadoop.fs.*;
+import org.apache.hadoop.hdds.HDDSFileStatus;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
+import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.HddsLocation;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.HDDSLocatedBlocksProto;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.HDDSFileStatusProto;
 import org.apache.hadoop.hdfs.AddBlockFlag;
-import org.apache.hadoop.fs.CacheFlag;
-import org.apache.hadoop.fs.ContentSummary;
-import org.apache.hadoop.fs.CreateFlag;
-import org.apache.hadoop.fs.FileEncryptionInfo;
-import org.apache.hadoop.fs.FsServerDefaults;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.QuotaUsage;
-import org.apache.hadoop.fs.StorageType;
-import org.apache.hadoop.fs.XAttr;
-import org.apache.hadoop.fs.XAttrSetFlag;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.AclEntryScope;
 import org.apache.hadoop.fs.permission.AclEntryType;
@@ -3413,5 +3411,144 @@ public class PBHelperClient {
       }
     }
     return typeProtos;
+  }
+
+  public static HDDSFileStatus convert(HDDSFileStatusProto fs) {
+    if (fs == null) {
+      return null;
+    }
+    EnumSet<HdfsFileStatus.Flags> flags = fs.hasFlags()
+        ? convertFlags(fs.getFlags())
+        : convertFlags(fs.getPermission());
+    return HDDSFileStatus.fromHdfsFileStatus(new HdfsFileStatus.Builder()
+        .length(fs.getLength())
+        .isdir(fs.getFileType().equals(FileType.IS_DIR))
+        .replication(fs.getBlockReplication())
+        .blocksize(fs.getBlocksize())
+        .mtime(fs.getModificationTime())
+        .atime(fs.getAccessTime())
+        .perm(convert(fs.getPermission()))
+        .flags(flags)
+        .owner(fs.getOwner())
+        .group(fs.getGroup())
+        .symlink(FileType.IS_SYMLINK.equals(fs.getFileType())
+            ? fs.getSymlink().toByteArray()
+            : null)
+        .path(fs.getPath().toByteArray())
+        .fileId(fs.hasFileId()
+            ? fs.getFileId()
+            : HdfsConstants.GRANDFATHER_INODE_ID)
+        .children(fs.hasChildrenNum() ? fs.getChildrenNum() : -1)
+        .feInfo(fs.hasFileEncryptionInfo()
+            ? convert(fs.getFileEncryptionInfo())
+            : null)
+        .storagePolicy(fs.hasStoragePolicy()
+            ? (byte) fs.getStoragePolicy()
+            : HdfsConstants.BLOCK_STORAGE_POLICY_ID_UNSPECIFIED)
+        .ecPolicy(fs.hasEcPolicy()
+            ? convertErasureCodingPolicy(fs.getEcPolicy())
+            : null)
+        .build(), convert(fs.getLocations()));
+  }
+
+  public static HDDSLocatedBlocks convert(
+      HDDSLocatedBlocksProto proto) {
+    HDDSLocatedBlocks hddsLocatedBlocks = new HDDSLocatedBlocks(
+        proto.getFileLength(),
+        proto.getUnderConstruction(),
+        convertLocationList(proto.getBlocksList()), null,
+        proto.getIsLastBlockComplete(),
+        null, null);
+    return hddsLocatedBlocks;
+  }
+
+  public static List<HDDSLocationInfo> convertLocationList(
+      List<HddsLocation> hddsLocationList) {
+    List<HDDSLocationInfo> blks = new ArrayList<>();
+    for (HddsLocation hddsLocation : hddsLocationList) {
+      blks.add(HDDSLocationInfo.getFromProtobuf(hddsLocation));
+    }
+    return blks;
+  }
+
+  public static List<HddsLocation> convertLocationInfoList(
+      List<HDDSLocationInfo> hddsLocationInfoList) {
+    List<HddsLocation> blks = new ArrayList<>();
+    for (HDDSLocationInfo hddsLocationInfo : hddsLocationInfoList) {
+      blks.add(hddsLocationInfo.getProtobuf());
+    }
+    return blks;
+  }
+
+  public static HDDSFileStatusProto convert(HDDSFileStatus fs) {
+    if (fs == null)
+      return null;
+    ClientNamenodeSCMProtocolProtos.HDDSFileStatusProto.FileType
+        fType = ClientNamenodeSCMProtocolProtos.HDDSFileStatusProto.FileType.IS_FILE;
+    if (fs.isDirectory()) {
+      fType = ClientNamenodeSCMProtocolProtos.HDDSFileStatusProto.FileType.IS_DIR;
+    } else if (fs.isSymlink()) {
+      fType = ClientNamenodeSCMProtocolProtos.HDDSFileStatusProto.FileType.IS_SYMLINK;
+    }
+
+    HDDSFileStatusProto.Builder builder =
+        HDDSFileStatusProto.newBuilder().
+            setLength(fs.getLen()).
+            setFileType(fType).
+            setBlockReplication(fs.getReplication()).
+            setBlocksize(fs.getBlockSize()).
+            setModificationTime(fs.getModificationTime()).
+            setAccessTime(fs.getAccessTime()).
+            setPermission(convert(fs.getPermission())).
+            setOwnerBytes(getFixedByteString(fs.getOwner())).
+            setGroupBytes(getFixedByteString(fs.getGroup())).
+            setFileId(fs.getFileId()).
+            setChildrenNum(fs.getChildrenNum()).
+            setPath(getByteString(fs.getLocalNameInBytes())).
+            setStoragePolicy(fs.getStoragePolicy());
+    if (fs.isSymlink())  {
+      builder.setSymlink(getByteString(fs.getSymlinkInBytes()));
+    }
+    if (fs.getFileEncryptionInfo() != null) {
+      builder.setFileEncryptionInfo(convert(fs.getFileEncryptionInfo()));
+    }
+    HDDSLocatedBlocks locations = fs.getLocatedBlocks();
+    if (locations != null) {
+      builder.setLocations(convert(locations));
+    }
+    if(fs.getErasureCodingPolicy() != null) {
+      builder.setEcPolicy(convertErasureCodingPolicy(
+          fs.getErasureCodingPolicy()));
+    }
+    int flags = fs.hasAcl()   ? HdfsFileStatusProto.Flags.HAS_ACL_VALUE   : 0;
+    flags |= fs.isEncrypted() ? HdfsFileStatusProto.Flags.HAS_CRYPT_VALUE : 0;
+    flags |= fs.isErasureCoded() ? HdfsFileStatusProto.Flags.HAS_EC_VALUE : 0;
+    flags |= fs.isSnapshotEnabled() ? HdfsFileStatusProto.Flags
+        .SNAPSHOT_ENABLED_VALUE : 0;
+    builder.setFlags(flags);
+    return builder.build();
+  }
+
+  private static HDDSLocatedBlocksProto convert(HDDSLocatedBlocks lb) {
+    if (lb == null) {
+      return null;
+    }
+    HDDSLocatedBlocksProto.Builder builder =
+        HDDSLocatedBlocksProto.newBuilder();
+    if (lb.getLastLocatedBlock() != null) {
+      builder.setLastBlock(
+          lb.getLastLocatedBlock().getProtobuf());
+    }
+    if (lb.getFileEncryptionInfo() != null) {
+      builder.setFileEncryptionInfo(convert(lb.getFileEncryptionInfo()));
+    }
+    if (lb.getErasureCodingPolicy() != null) {
+      builder.setEcPolicy(convertErasureCodingPolicy(
+          lb.getErasureCodingPolicy()));
+    }
+    return builder.setFileLength(lb.getFileLength())
+        .setUnderConstruction(lb.isUnderConstruction())
+        .addAllBlocks(convertLocationInfoList(lb.getLocatedBlocks()))
+        .setIsLastBlockComplete(lb.isLastBlockComplete()).build();
   }
 }

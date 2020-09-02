@@ -50,6 +50,7 @@ import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.ha.HAServiceProtocol;
 import org.apache.hadoop.ha.proto.HAServiceProtocolProtos.HAServiceStateProto;
+import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
@@ -227,6 +228,10 @@ import org.apache.hadoop.hdfs.protocol.proto.XAttrProtos.SetXAttrRequestProto;
 import org.apache.hadoop.hdfs.security.token.block.DataEncryptionKey;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeStorageReport;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.CompleteHDDSFileRequestProto;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.AllocateBlockRequest;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.HddsLocation;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.GetHDDSLocatedFileInfoResponseProto;
 import org.apache.hadoop.io.EnumSetWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.retry.AsyncCallHandler;
@@ -2000,17 +2005,22 @@ public class ClientNamenodeProtocolTranslatorPB implements
   }
 
   @Override
-  public HDDSLocationInfo allocateBlock(String src, long clientId,
-                                        ExcludeList excludeList)
+  public HDDSLocationInfo allocateBlock(
+      String src, String clientName, HDDSLocationInfo previousBlock,
+      ExcludeList excludeList, long fileId, long clientId)
       throws IOException {
-    ClientNamenodeSCMProtocolProtos.AllocateBlockRequest req =
-        ClientNamenodeSCMProtocolProtos.AllocateBlockRequest.newBuilder()
-            .setSrc(src)
-            .setClientID(clientId)
-            .setExcludeList(excludeList.getProtoBuf())
-            .build();
+    AllocateBlockRequest.Builder builder = AllocateBlockRequest.newBuilder()
+        .setSrc(src)
+        .setClientName(clientName)
+        .setFileId(fileId)
+        .setClientID(clientId)
+        .setExcludeList(excludeList.getProtoBuf());
+    if (previousBlock != null) {
+      builder.setPrevious(previousBlock.getProtobuf());
+    }
+    AllocateBlockRequest req = builder.build();
     try {
-      ClientNamenodeSCMProtocolProtos.HddsLocation hddsLocation =
+      HddsLocation hddsLocation =
           rpcProxy.allocateBlock(null, req).getHddsLocation();
       HDDSLocationInfo info = HDDSLocationInfo.getFromProtobuf(hddsLocation);
       // TODO(baoloongmao): bring token back later
@@ -2020,6 +2030,42 @@ public class ClientNamenodeProtocolTranslatorPB implements
 //      }
       info.setCreateVersion(hddsLocation.getCreateVersion());
       return info;
+    } catch (ServiceException e) {
+      throw ProtobufHelper.getRemoteException(e);
+    }
+  }
+
+  @Override
+  public HDDSFileStatus getHDDSLocatedFileInfo(String src,
+                                                  boolean needBlockToken) throws IOException {
+    GetLocatedFileInfoRequestProto req =
+        GetLocatedFileInfoRequestProto.newBuilder()
+            .setSrc(src)
+            .setNeedBlockToken(needBlockToken)
+            .build();
+    try {
+      GetHDDSLocatedFileInfoResponseProto res =
+          rpcProxy.getHDDSLocatedFileInfo(null, req);
+      return (HDDSFileStatus) (res.hasFs()
+          ? PBHelperClient.convert(res.getFs())
+          : null);
+    } catch (ServiceException e) {
+      throw ProtobufHelper.getRemoteException(e);
+    }
+  }
+
+  @Override
+  public boolean completeHDDSFile(String src, String clientName,
+                               HDDSLocationInfo last, long fileId)
+      throws IOException {
+    CompleteHDDSFileRequestProto.Builder req = CompleteHDDSFileRequestProto.newBuilder()
+        .setSrc(src)
+        .setClientName(clientName)
+        .setFileId(fileId);
+    if (last != null)
+      req.setLast(last.getProtobuf());
+    try {
+      return rpcProxy.completeHDDSFile(null, req.build()).getResult();
     } catch (ServiceException e) {
       throw ProtobufHelper.getRemoteException(e);
     }

@@ -20,6 +20,8 @@ package org.apache.hadoop.hdfs.server.namenode;
 import com.google.common.base.Preconditions;
 import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.fs.XAttrSetFlag;
+import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.scm.container.common.helpers.AllocatedBlock;
 import org.apache.hadoop.hdfs.AddBlockFlag;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
@@ -265,6 +267,25 @@ class FSDirWriteFileOp {
     return makeLocatedBlock(fsn, fsn.getStoredBlock(newBlock), targets, offset);
   }
 
+  static void storeHDDSAllocatedBlock(FSNamesystem fsn, String src,
+                                          long fileId, String clientName, HDDSLocationInfo previous,
+                                              HDDSLocationInfo allocatedBlock) throws IOException {
+    long offset;
+    // Run the full analysis again, since things could have changed
+    // while chooseTarget() was executing.
+    LocatedBlock[] onRetryBlock = new LocatedBlock[1];
+    INodesInPath iip = fsn.dir.resolvePath(null, src, fileId);
+    final INodeFile file = fsn.checkLease(iip, clientName, fileId);
+    FileState fileState = new FileState(file, src, iip);
+    final INodeFile pendingFile = fileState.inode;
+    src = fileState.path;
+
+    INodesInPath inodesInPath = INodesInPath.fromINode(pendingFile);
+    final INodeFile fileINode = inodesInPath.getLastINode().asFile();
+    fileINode.addHDDSBlock(allocatedBlock);
+    // TODO(baoloongmao): logAllocatedBlock and persist
+  }
+
   static DatanodeStorageInfo[] chooseTargetForNewBlock(
       BlockManager bm, String src, DatanodeInfo[] excludedNodes,
       String[] favoredNodes, EnumSet<AddBlockFlag> flags,
@@ -410,7 +431,8 @@ class FSDirWriteFileOp {
           XAttrSetFlag.CREATE);
     }
     setNewINodeStoragePolicy(fsd.getBlockManager(), iip, isLazyPersist);
-    fsd.getEditLog().logOpenFile(src, newNode, overwrite, logRetryEntry);
+    // TODO(baoloongmao): log edit later
+//    fsd.getEditLog().logOpenFile(src, newNode, overwrite, logRetryEntry);
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* NameSystem.startFile: added " +
           src + " inode " + newNode.getId() + " " + holder);
@@ -713,9 +735,9 @@ class FSDirWriteFileOp {
     }
     // Check the state of the penultimate block. It should be completed
     // before attempting to complete the last one.
-    if (!fsn.checkFileProgress(src, pendingFile, false)) {
-      return false;
-    }
+//    if (!fsn.checkFileProgress(src, pendingFile, false)) {
+//      return false;
+//    }
 
     // commit the last block and complete it if it has minimum replicas
     fsn.commitOrCompleteLastBlock(pendingFile, iip, last);
@@ -736,7 +758,7 @@ class FSDirWriteFileOp {
       Short replication, Byte ecPolicyID, long preferredBlockSize,
       byte storagePolicyId, BlockType blockType) {
     return new INodeFile(id, null, permissions, mtime, atime,
-        BlockInfo.EMPTY_ARRAY, replication, ecPolicyID, preferredBlockSize,
+        INodeFile.HDDS_EMPTY_ARRAY, replication, ecPolicyID, preferredBlockSize,
         storagePolicyId, blockType);
   }
 
@@ -863,5 +885,45 @@ class FSDirWriteFileOp {
             "ecPolicy is not specified for striped block");
       }
     }
+  }
+
+  static boolean completeHDDSFile(FSNamesystem fsn, FSPermissionChecker pc,
+                              final String srcArg, String holder, HDDSLocationInfo last, long fileId)
+      throws IOException {
+    String src = srcArg;
+    if (NameNode.stateChangeLog.isDebugEnabled()) {
+      NameNode.stateChangeLog.debug("DIR* NameSystem.completeFile: " +
+          src + " for " + holder);
+    }
+//    checkBlock(fsn, last);
+    INodesInPath iip = fsn.dir.resolvePath(pc, src, fileId);
+    return completeHDDSFileInternal(fsn, iip, holder,
+        last, fileId);
+  }
+
+  private static boolean completeHDDSFileInternal(
+      FSNamesystem fsn, INodesInPath iip,
+      String holder, HDDSLocationInfo last, long fileId)
+      throws IOException {
+    assert fsn.hasWriteLock();
+    final String src = iip.getPath();
+    final INodeFile pendingFile;
+    INode inode = null;
+    try {
+      inode = iip.getLastINode();
+      pendingFile = fsn.checkLease(iip, holder, fileId);
+    } catch (LeaseExpiredException lee) {
+      throw lee;
+    }
+    // Check the state of the penultimate block. It should be completed
+    // before attempting to complete the last one.
+//    if (!fsn.checkFileProgress(src, pendingFile, false)) {
+//      return false;
+//    }
+
+    // commit the last block and complete it if it has minimum replicas
+    HDDSLocationInfo lastBlock = pendingFile.getLastHDDSBlock();
+    lastBlock.setLength(last.getLength());
+    return true;
   }
 }

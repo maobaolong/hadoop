@@ -5,6 +5,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.crypto.CryptoProtocolVersion;
 import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdds.HDDSFileStatus;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
 import org.apache.hadoop.hdds.client.ReplicationFactor;
 import org.apache.hadoop.hdds.client.ReplicationType;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -241,6 +243,7 @@ public class HDDSClient extends DFSClient {
           .setXceiverClientManager(xceiverClientManager)
           .setOmClient(this)
           .setSrc(src)
+          .setStat(stat)
           .setChunkSize(chunkSize)
           .setRequestID(UUID.randomUUID().toString())
           .setType(HddsProtos.ReplicationType.valueOf(replicationType.toString()))
@@ -259,6 +262,52 @@ public class HDDSClient extends DFSClient {
     }
   }
 
+  public HDDSInputStream openHDDS(HdfsPathHandle fd, int buffersize,
+                             boolean verifyChecksum) throws IOException {
+    checkOpen();
+    String src = fd.getPath();
+    try (TraceScope ignored = newPathTraceScope("newDFSInputStream", src)) {
+      HDDSFileStatus s = getHDDSLocatedFileInfo(src, true);
+//      fd.verify(s); // check invariants in path handle
+      HDDSLocatedBlocks locatedBlocks = s.getLocatedBlocks();
+      return HDDSInputStream.getFromSrc(src, locatedBlocks, xceiverClientManager, verifyChecksum, str -> {
+        try {
+          return getHDDSLocatedFileInfo(str, true);
+        } catch (IOException e) {
+          LOG.error("Unable to lookup key {} on retry.", str, e);
+          return null;
+        }
+      });
+    }
+  }
 
+  public HDDSInputStream openHDDS(String src, int buffersize,
+                                  boolean verifyChecksum) throws IOException {
+    checkOpen();
+    try (TraceScope ignored = newPathTraceScope("newDFSInputStream", src)) {
+      HDDSFileStatus s = getHDDSLocatedFileInfo(src, true);
+//      fd.verify(s); // check invariants in path handle
+      HDDSLocatedBlocks locatedBlocks = s.getLocatedBlocks();
+      return HDDSInputStream.getFromSrc(src, locatedBlocks, xceiverClientManager, verifyChecksum, str -> {
+        try {
+          return getHDDSLocatedFileInfo(str, true);
+        } catch (IOException e) {
+          LOG.error("Unable to lookup key {} on retry.", str, e);
+          return null;
+        }
+      });
+    }
+  }
 
+  public HDDSFileStatus getHDDSLocatedFileInfo(String src,
+                                           boolean needBlockToken) throws IOException {
+    checkOpen();
+    try (TraceScope ignored = newPathTraceScope("getLocatedFileInfo", src)) {
+      return getNamenode().getHDDSLocatedFileInfo(src, needBlockToken);
+    } catch (RemoteException re) {
+      throw re.unwrapRemoteException(AccessControlException.class,
+          FileNotFoundException.class,
+          UnresolvedPathException.class);
+    }
+  }
 }

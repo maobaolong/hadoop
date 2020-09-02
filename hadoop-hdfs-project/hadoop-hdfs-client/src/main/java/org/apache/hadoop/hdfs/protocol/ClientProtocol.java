@@ -28,6 +28,7 @@ import org.apache.hadoop.crypto.CryptoProtocolVersion;
 import org.apache.hadoop.fs.BatchedRemoteIterator.BatchedEntries;
 import org.apache.hadoop.fs.PathIsNotEmptyDirectoryException;
 import org.apache.hadoop.ha.HAServiceProtocol;
+import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.AddBlockFlag;
@@ -1827,19 +1828,21 @@ public interface ClientProtocol {
   @AtMostOnce
   void satisfyStoragePolicy(String path) throws IOException;
 
-  /**
-   * Allocate a new block, it is assumed that the client is having an open key
-   * session going on. This block will be appended to this open key session.
-   *
-   * @param args the key to append
-   * @param clientID the client identification
-   * @param excludeList List of datanodes/containers to exclude during block
-   *                    allocation
-   * @return an allocated block
-   * @throws IOException
-   */
-  default HDDSLocationInfo allocateBlock(String src, long clientID,
-                                         ExcludeList excludeList) throws IOException {
+  default HDDSFileStatus getHDDSLocatedFileInfo(String src,
+      boolean needBlockToken) throws IOException {
+    return null;
+  }
+
+  default boolean completeHDDSFile(String src, String clientName,
+                        HDDSLocationInfo previousBlock, long fileId)
+      throws IOException {
+    return true;
+  }
+
+  default HDDSLocationInfo allocateBlock(String src, String clientName,
+      HDDSLocationInfo previousBlock, ExcludeList excludeList, long fileId,
+      long clientId)
+      throws IOException {
     return null;
   }
 }
