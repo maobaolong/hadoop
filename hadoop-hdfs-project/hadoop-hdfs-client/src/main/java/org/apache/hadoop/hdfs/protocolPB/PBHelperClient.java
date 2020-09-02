@@ -41,7 +41,16 @@ import com.google.protobuf.CodedInputStream;
 import org.apache.hadoop.crypto.CipherOption;
 import org.apache.hadoop.crypto.CipherSuite;
 import org.apache.hadoop.crypto.CryptoProtocolVersion;
-import org.apache.hadoop.fs.*;
+import org.apache.hadoop.fs.CacheFlag;
+import org.apache.hadoop.fs.ContentSummary;
+import org.apache.hadoop.fs.CreateFlag;
+import org.apache.hadoop.fs.FileEncryptionInfo;
+import org.apache.hadoop.fs.FsServerDefaults;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.QuotaUsage;
+import org.apache.hadoop.fs.StorageType;
+import org.apache.hadoop.fs.XAttr;
+import org.apache.hadoop.fs.XAttrSetFlag;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
@@ -3481,8 +3490,9 @@ public class PBHelperClient {
   }
 
   public static HDDSFileStatusProto convert(HDDSFileStatus fs) {
-    if (fs == null)
+    if (fs == null) {
       return null;
+    }
     ClientNamenodeSCMProtocolProtos.HDDSFileStatusProto.FileType
         fType = ClientNamenodeSCMProtocolProtos.HDDSFileStatusProto.FileType.IS_FILE;
     if (fs.isDirectory()) {
@@ -3492,20 +3502,20 @@ public class PBHelperClient {
     }
 
     HDDSFileStatusProto.Builder builder =
-        HDDSFileStatusProto.newBuilder().
-            setLength(fs.getLen()).
-            setFileType(fType).
-            setBlockReplication(fs.getReplication()).
-            setBlocksize(fs.getBlockSize()).
-            setModificationTime(fs.getModificationTime()).
-            setAccessTime(fs.getAccessTime()).
-            setPermission(convert(fs.getPermission())).
-            setOwnerBytes(getFixedByteString(fs.getOwner())).
-            setGroupBytes(getFixedByteString(fs.getGroup())).
-            setFileId(fs.getFileId()).
-            setChildrenNum(fs.getChildrenNum()).
-            setPath(getByteString(fs.getLocalNameInBytes())).
-            setStoragePolicy(fs.getStoragePolicy());
+        HDDSFileStatusProto.newBuilder()
+            .setLength(fs.getLen())
+            .setFileType(fType)
+            .setBlockReplication(fs.getReplication())
+            .setBlocksize(fs.getBlockSize())
+            .setModificationTime(fs.getModificationTime())
+            .setAccessTime(fs.getAccessTime())
+            .setPermission(convert(fs.getPermission()))
+            .setOwnerBytes(getFixedByteString(fs.getOwner()))
+            .setGroupBytes(getFixedByteString(fs.getGroup()))
+            .setFileId(fs.getFileId())
+            .setChildrenNum(fs.getChildrenNum())
+            .setPath(getByteString(fs.getLocalNameInBytes()))
+            .setStoragePolicy(fs.getStoragePolicy());
     if (fs.isSymlink())  {
       builder.setSymlink(getByteString(fs.getSymlinkInBytes()));
     }
