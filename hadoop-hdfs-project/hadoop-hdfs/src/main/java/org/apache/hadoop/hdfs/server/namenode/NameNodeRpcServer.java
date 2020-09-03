@@ -2619,9 +2619,14 @@ public class NameNodeRpcServer implements NamenodeProtocols {
                                         long fileId,
                                         long clientID)
       throws IOException {
-    return namesystem.allocateBlock(
+    checkNNStartup();
+    HDDSLocationInfo allocateBlock = namesystem.getAdditionalHDDSBlock(
         src, clientName, previous, excludeList,
         fileId, clientID);
+    if (allocateBlock != null) {
+      metrics.incrAddBlockOps();
+    }
+    return allocateBlock;
   }
 
   @Override // ClientProtocol
