@@ -3211,9 +3211,12 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     return namenode.getHAServiceState();
   }
 
-  public HDDSLocationInfo allocateBlock(String src, long clientId,
-                                                     ExcludeList excludeList)
+  public HDDSLocationInfo allocateBlock(String src,
+      String clientName, HDDSLocationInfo previousBlock,
+      ExcludeList excludeList, long fileId,
+      long clientId)
       throws IOException {
-    return namenode.allocateBlock(src, clientId, excludeList);
+    return namenode.allocateBlock(src, clientName, previousBlock,
+        excludeList, fileId, clientId);
   }
 }

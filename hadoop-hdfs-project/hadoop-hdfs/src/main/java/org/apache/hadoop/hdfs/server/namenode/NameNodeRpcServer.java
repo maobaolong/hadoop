@@ -51,6 +51,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.ReconfigurationTaskStatus;
 import org.apache.hadoop.crypto.CryptoProtocolVersion;
 import org.apache.hadoop.fs.BatchedRemoteIterator.BatchedEntries;
+import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.AddBlockFlag;
@@ -2612,9 +2613,36 @@ public class NameNodeRpcServer implements NamenodeProtocols {
   }
 
   @Override
-  public HDDSLocationInfo allocateBlock(String src, long clientID,
-                                        ExcludeList excludeList)
+  public HDDSLocationInfo allocateBlock(String src, String clientName,
+                                        HDDSLocationInfo previous,
+                                        ExcludeList excludeList,
+                                        long fileId,
+                                        long clientID)
       throws IOException {
-    return namesystem.allocateBlock(src, clientID, excludeList);
+    return namesystem.allocateBlock(
+        src, clientName, previous, excludeList,
+        fileId, clientID);
+  }
+
+  @Override // ClientProtocol
+  public HDDSFileStatus getHDDSLocatedFileInfo(String src,
+      boolean needBlockToken) throws IOException {
+    checkNNStartup();
+    if (needBlockToken) {
+      metrics.incrGetBlockLocations();
+    } else {
+      metrics.incrFileInfoOps();
+    }
+    return
+        namesystem.getHDDSFileInfo(src, true, true, needBlockToken);
+  }
+
+  @Override
+  public boolean completeHDDSFile(String src, String clientName,
+                               HDDSLocationInfo last, long fileId)
+      throws IOException {
+    checkNNStartup();
+    namesystem.completeHDDSFile(src, clientName, last, fileId);
+    return true;
   }
 }

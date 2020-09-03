@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hdfs.server.namenode;
 
+import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.util.StringUtils;
 
@@ -150,6 +151,12 @@ public class FSDirectory implements Closeable {
       new HdfsFileStatus.Builder()
         .isdir(true)
         .build();
+
+  public final static HDDSFileStatus HDDS_DOT_RESERVED_STATUS =
+      HDDSFileStatus.fromHdfsFileStatus(DOT_RESERVED_STATUS, null);
+
+  public final static HDDSFileStatus HDDS_DOT_SNAPSHOT_DIR_STATUS =
+      HDDSFileStatus.fromHdfsFileStatus(DOT_SNAPSHOT_DIR_STATUS, null);
 
   INodeDirectory rootDir;
   private final FSNamesystem namesystem;

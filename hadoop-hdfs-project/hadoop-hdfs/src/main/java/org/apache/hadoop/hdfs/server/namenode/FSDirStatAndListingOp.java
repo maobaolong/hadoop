@@ -27,6 +27,10 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.QuotaUsage;
+import org.apache.hadoop.hdds.HDDSFileStatus;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
+import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
@@ -45,8 +49,7 @@ import org.apache.hadoop.security.AccessControlException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.EnumSet;
+import java.util.*;
 
 import static org.apache.hadoop.util.Time.now;
 
@@ -114,6 +117,170 @@ class FSDirStatAndListingOp {
       iip = fsd.resolvePath(pc, srcArg, dirOp);
     }
     return getFileInfo(fsd, iip, needLocation, needBlockToken);
+  }
+
+  static HDDSFileStatus getHDDSFileInfo(FSDirectory fsd, FSPermissionChecker pc,
+                                        String srcArg, boolean resolveLink, boolean needLocation,
+                                        boolean needBlockToken) throws IOException {
+    DirOp dirOp = resolveLink ? DirOp.READ : DirOp.READ_LINK;
+    final INodesInPath iip;
+    if (pc.isSuperUser()) {
+      // superuser can only get an ACE if an existing ancestor is a file.
+      // right or (almost certainly) wrong, current fs contracts expect
+      // superuser to receive null instead.
+      try {
+        iip = fsd.resolvePath(pc, srcArg, dirOp);
+      } catch (AccessControlException ace) {
+        return null;
+      }
+    } else {
+      iip = fsd.resolvePath(pc, srcArg, dirOp);
+    }
+    return getHDDSFileInfo(fsd, iip, needLocation, needBlockToken);
+  }
+
+  static HDDSFileStatus getHDDSFileInfo(FSDirectory fsd, INodesInPath iip,
+                                    boolean needLocation, boolean needBlockToken) throws IOException {
+    fsd.readLock();
+    try {
+      HDDSFileStatus status = null;
+      if (FSDirectory.isExactReservedName(iip.getPathComponents())) {
+        status = FSDirectory.HDDS_DOT_RESERVED_STATUS;
+      } else if (iip.isDotSnapshotDir()) {
+        if (fsd.getINode4DotSnapshot(iip) != null) {
+          status = FSDirectory.HDDS_DOT_SNAPSHOT_DIR_STATUS;
+        }
+      } else {
+        status = getHDDSFileInfo(fsd, iip, true, needLocation, needBlockToken);
+      }
+      return status;
+    } finally {
+      fsd.readUnlock();
+    }
+  }
+
+  static HDDSFileStatus getHDDSFileInfo(FSDirectory fsd, INodesInPath iip,
+                                    boolean includeStoragePolicy, boolean needLocation,
+                                    boolean needBlockToken) throws IOException {
+    fsd.readLock();
+    try {
+      final INode node = iip.getLastINode();
+      if (node == null) {
+        return null;
+      }
+      byte policy = (includeStoragePolicy && !node.isSymlink())
+          ? node.getStoragePolicyID()
+          : HdfsConstants.BLOCK_STORAGE_POLICY_ID_UNSPECIFIED;
+      return createHDDSFileStatus(fsd, iip, null, policy, needLocation,
+          needBlockToken);
+    } finally {
+      fsd.readUnlock();
+    }
+  }
+
+  private static HDDSFileStatus createHDDSFileStatus(
+      FSDirectory fsd, INodesInPath iip, INode child, byte storagePolicy,
+      boolean needLocation, boolean needBlockToken) throws IOException {
+    assert fsd.hasReadLock();
+    // only directory listing sets the status name.
+    byte[] name = HdfsFileStatus.EMPTY_NAME;
+    if (child != null) {
+      name = child.getLocalNameBytes();
+      // have to do this for EC and EZ lookups...
+      iip = INodesInPath.append(iip, child, name);
+    }
+
+    long size = 0;     // length is zero for directories
+    short replication = 0;
+    long blocksize = 0;
+    final INode node = iip.getLastINode();
+    final int snapshot = iip.getPathSnapshotId();
+    HDDSLocatedBlocks locatedBlocks = null;
+
+    final boolean isEncrypted = FSDirEncryptionZoneOp.isInAnEZ(fsd, iip);
+    FileEncryptionInfo feInfo = null;
+
+    final ErasureCodingPolicy ecPolicy = FSDirErasureCodingOp
+        .unprotectedGetErasureCodingPolicy(fsd.getFSNamesystem(), iip);
+    final boolean isErasureCoded = (ecPolicy != null);
+
+    boolean isSnapShottable = false;
+
+    if (node.isFile()) {
+      final INodeFile fileNode = node.asFile();
+      size = fileNode.computeFileSize(snapshot);
+      replication = fileNode.getFileReplication(snapshot);
+      blocksize = fileNode.getPreferredBlockSize();
+      if (isEncrypted) {
+        feInfo = FSDirEncryptionZoneOp.getFileEncryptionInfo(fsd, iip);
+      }
+      if (needLocation) {
+        final boolean inSnapshot = snapshot != Snapshot.CURRENT_STATE_ID;
+        final boolean isUc = !inSnapshot && fileNode.isUnderConstruction();
+        final long fileSize = !inSnapshot && isUc
+            ? fileNode.computeFileSizeNotIncludingLastUcBlock() : size;
+
+        List<HDDSLocationInfo> blks = new ArrayList<>();
+        Set<Long> containerIDs = new HashSet<>();
+        for (HDDSLocationInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
+          containerIDs.add(hddsLocationInfo.getContainerID());
+        }
+        Map<Long, ContainerWithPipeline> containerWithPipelineMap =
+            fsd.getFSNamesystem().refreshPipeline(containerIDs);
+        for (HDDSLocationInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
+          ContainerWithPipeline cp =
+              containerWithPipelineMap.get(hddsLocationInfo.getContainerID());
+          if (cp != null && !cp.getPipeline().equals(hddsLocationInfo.getPipeline())) {
+            hddsLocationInfo.setPipeline(cp.getPipeline());
+          }
+          blks.add(hddsLocationInfo);
+        }
+        locatedBlocks = new HDDSLocatedBlocks(
+            fileSize, false, blks, fileNode.getLastHDDSBlock(), true, null, null);
+      }
+    } else if (node.isDirectory()) {
+      isSnapShottable = node.asDirectory().isSnapshottable();
+    }
+
+    int childrenNum = node.isDirectory() ?
+        node.asDirectory().getChildrenNum(snapshot) : 0;
+
+    EnumSet<HdfsFileStatus.Flags> flags =
+        EnumSet.noneOf(HdfsFileStatus.Flags.class);
+    INodeAttributes nodeAttrs = fsd.getAttributes(iip);
+    boolean hasAcl = nodeAttrs.getAclFeature() != null;
+    if (hasAcl) {
+      flags.add(HdfsFileStatus.Flags.HAS_ACL);
+    }
+    if (isEncrypted) {
+      flags.add(HdfsFileStatus.Flags.HAS_CRYPT);
+    }
+    if (isErasureCoded) {
+      flags.add(HdfsFileStatus.Flags.HAS_EC);
+    }
+    if(isSnapShottable){
+      flags.add(HdfsFileStatus.Flags.SNAPSHOT_ENABLED);
+    }
+
+    return new HDDSFileStatus(
+        size,
+        node.isDirectory(),
+        replication,
+        blocksize,
+        node.getModificationTime(snapshot),
+        node.getAccessTime(snapshot),
+        nodeAttrs.getFsPermission(),
+        flags,
+        nodeAttrs.getUserName(),
+        nodeAttrs.getGroupName(),
+        node.isSymlink() ? node.asSymlink().getSymlink() : null,
+        name,
+        node.getId(),
+        childrenNum,
+        feInfo,
+        storagePolicy,
+        ecPolicy,
+        locatedBlocks);
   }
 
   /**

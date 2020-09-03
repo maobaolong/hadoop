@@ -30,6 +30,8 @@ package hadoop.hdfs;
 
 import "Security.proto";
 import "hdds.proto";
+import "hdfs.proto";
+import "acl.proto";
 
 message HddsLocation {
     required hadoop.hdds.BlockID blockID = 1;
@@ -54,11 +56,85 @@ message HddsLocationList {
 
 message AllocateBlockRequest {
     required string src = 1;
-    required uint64 clientID = 2;
-    optional hadoop.hdds.ExcludeListProto excludeList = 3;
-    optional HddsLocation hddsLocation = 4;
+    required string clientName = 2;
+    optional HddsLocation previous = 3;
+    optional hadoop.hdds.ExcludeListProto excludeList = 4;
+    optional uint64 fileId = 5 [default = 0];  // default as a bogus id
+    required uint64 clientID = 6;
 }
 
 message AllocateBlockResponse {
     optional HddsLocation hddsLocation = 2;
+}
+
+
+message HDDSLocatedBlocksProto {
+    required uint64 fileLength = 1;
+    repeated HddsLocation blocks = 2;
+    required bool underConstruction = 3;
+    optional HddsLocation lastBlock = 4;
+    required bool isLastBlockComplete = 5;
+    optional FileEncryptionInfoProto fileEncryptionInfo = 6;
+
+    // Optional field for erasure coding
+    optional ErasureCodingPolicyProto ecPolicy = 7;
+}
+
+message HDDSFileStatusProto {
+    enum FileType {
+        IS_DIR = 1;
+        IS_FILE = 2;
+        IS_SYMLINK = 3;
+    }
+    enum Flags {
+        HAS_ACL   = 0x01; // has ACLs
+        HAS_CRYPT = 0x02; // encrypted
+        HAS_EC    = 0x04; // erasure coded
+        SNAPSHOT_ENABLED    = 0x08; // SNAPSHOT ENABLED
+    }
+    required FileType fileType = 1;
+    required bytes path = 2;          // local name of inode encoded java UTF8
+    required uint64 length = 3;
+    required FsPermissionProto permission = 4;
+    required string owner = 5;
+    required string group = 6;
+    required uint64 modification_time = 7;
+    required uint64 access_time = 8;
+
+    // Optional fields for symlink
+    optional bytes symlink = 9;             // if symlink, target encoded java UTF8
+
+    // Optional fields for file
+    optional uint32 block_replication = 10 [default = 0]; // only 16bits used
+    optional uint64 blocksize = 11 [default = 0];
+    optional HDDSLocatedBlocksProto locations = 12;  // suppled only if asked by client
+
+    // Optional field for fileId
+    optional uint64 fileId = 13 [default = 0]; // default as an invalid id
+    optional int32 childrenNum = 14 [default = -1];
+    // Optional field for file encryption
+    optional FileEncryptionInfoProto fileEncryptionInfo = 15;
+
+    optional uint32 storagePolicy = 16 [default = 0]; // block storage policy id
+
+    // Optional field for erasure coding
+    optional ErasureCodingPolicyProto ecPolicy = 17;
+
+    // Set of flags
+    optional uint32 flags = 18 [default = 0];
+}
+
+message GetHDDSLocatedFileInfoResponseProto {
+    optional HDDSFileStatusProto fs = 1;
+}
+
+message CompleteHDDSFileRequestProto {
+    required string src = 1;
+    required string clientName = 2;
+    optional HddsLocation last = 3;
+    optional uint64 fileId = 4 [default = 0];  // default to GRANDFATHER_INODE_ID
+}
+
+message CompleteHDDSFileResponseProto {
+    required bool result = 1;
 }

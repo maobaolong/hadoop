@@ -1046,4 +1046,6 @@ service ClientNamenodeProtocol {
   rpc getHAServiceState(HAServiceStateRequestProto)
       returns(HAServiceStateResponseProto);
   rpc allocateBlock(AllocateBlockRequest) returns(AllocateBlockResponse);
+  rpc getHDDSLocatedFileInfo(GetLocatedFileInfoRequestProto) returns(GetHDDSLocatedFileInfoResponseProto);
+  rpc completeHDDSFile(CompleteHDDSFileRequestProto) returns(CompleteHDDSFileResponseProto);
 }

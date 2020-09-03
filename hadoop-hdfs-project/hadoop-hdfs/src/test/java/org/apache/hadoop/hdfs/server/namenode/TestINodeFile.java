@@ -108,15 +108,15 @@ public class TestINodeFile {
 
   INodeFile createStripedINodeFile(long preferredBlockSize) {
     return new INodeFile(HdfsConstants.GRANDFATHER_INODE_ID, null, perm, 0L, 0L,
-        null, null,
-        StripedFileTestUtil.getDefaultECPolicy().getId(),
+        BlockInfo.EMPTY_ARRAY, null,
+        new Byte(StripedFileTestUtil.getDefaultECPolicy().getId()),
         preferredBlockSize,
         HdfsConstants.WARM_STORAGE_POLICY_ID, STRIPED);
   }
 
   private static INodeFile createINodeFile(byte storagePolicyID) {
     return new INodeFile(HdfsConstants.GRANDFATHER_INODE_ID, null, perm, 0L, 0L,
-        null, (short)3, null, 1024L, storagePolicyID, CONTIGUOUS);
+        BlockInfo.EMPTY_ARRAY, (short)3, null, 1024L, storagePolicyID, CONTIGUOUS);
   }
 
   @Test
@@ -142,7 +142,7 @@ public class TestINodeFile {
     INodeFile inodeFile;
     try {
       new INodeFile(HdfsConstants.GRANDFATHER_INODE_ID,
-          null, perm, 0L, 0L, null, new Short((short) 3) /*replication*/,
+          null, perm, 0L, 0L, BlockInfo.EMPTY_ARRAY, new Short((short) 3) /*replication*/,
           StripedFileTestUtil.getDefaultECPolicy().getId() /*ec policy*/,
           preferredBlockSize, HdfsConstants.WARM_STORAGE_POLICY_ID, CONTIGUOUS);
       fail("INodeFile construction should fail when both replication and " +
@@ -153,7 +153,7 @@ public class TestINodeFile {
 
     try {
       new INodeFile(HdfsConstants.GRANDFATHER_INODE_ID,
-          null, perm, 0L, 0L, null, null /*replication*/, null /*ec policy*/,
+          null, perm, 0L, 0L, BlockInfo.EMPTY_ARRAY, null /*replication*/, null /*ec policy*/,
           preferredBlockSize, HdfsConstants.WARM_STORAGE_POLICY_ID, CONTIGUOUS);
       fail("INodeFile construction should fail when replication param not " +
           "provided for contiguous layout!");
@@ -163,7 +163,7 @@ public class TestINodeFile {
 
     try {
       new INodeFile(HdfsConstants.GRANDFATHER_INODE_ID,
-          null, perm, 0L, 0L, null, Short.MAX_VALUE /*replication*/,
+          null, perm, 0L, 0L, BlockInfo.EMPTY_ARRAY, Short.MAX_VALUE /*replication*/,
           null /*ec policy*/, preferredBlockSize,
           HdfsConstants.WARM_STORAGE_POLICY_ID, CONTIGUOUS);
       fail("INodeFile construction should fail when replication param is " +
@@ -175,7 +175,7 @@ public class TestINodeFile {
     final Short replication = new Short((short) 3);
     try {
       new INodeFile(HdfsConstants.GRANDFATHER_INODE_ID,
-          null, perm, 0L, 0L, null, replication, null /*ec policy*/,
+          null, perm, 0L, 0L, BlockInfo.EMPTY_ARRAY, replication, null /*ec policy*/,
           preferredBlockSize, HdfsConstants.WARM_STORAGE_POLICY_ID, STRIPED);
       fail("INodeFile construction should fail when replication param is " +
           "provided for striped layout!");
@@ -184,7 +184,7 @@ public class TestINodeFile {
     }
 
     inodeFile = new INodeFile(HdfsConstants.GRANDFATHER_INODE_ID,
-        null, perm, 0L, 0L, null, replication, null /*ec policy*/,
+        null, perm, 0L, 0L, BlockInfo.EMPTY_ARRAY, replication, null /*ec policy*/,
         preferredBlockSize, HdfsConstants.WARM_STORAGE_POLICY_ID, CONTIGUOUS);
 
     Assert.assertTrue(!inodeFile.isStriped());

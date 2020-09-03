@@ -27,6 +27,7 @@ import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdds.scm.storage.BufferPool;
 import org.apache.hadoop.hdfs.DFSClient;
+import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.slf4j.Logger;
@@ -47,6 +48,7 @@ public class BlockOutputStreamEntryPool {
       LoggerFactory.getLogger(BlockOutputStreamEntryPool.class);
 
   private final List<BlockOutputStreamEntry> streamEntries;
+  private final HdfsFileStatus stat;
   private int currentStreamIndex;
   private final DFSClient dfsClient;
   private final XceiverClientManager xceiverClientManager;
@@ -65,17 +67,19 @@ public class BlockOutputStreamEntryPool {
   private final ExcludeList excludeList;
 
   private final String src;
+  private HDDSLocationInfo currentBlock;
 
   @SuppressWarnings({"parameternumber", "squid:S00107"})
   public BlockOutputStreamEntryPool(DFSClient dfsClient,
-        String src,
-        int chunkSize, String requestId, HddsProtos.ReplicationFactor factor,
-        HddsProtos.ReplicationType type,
-        int bufferSize, long bufferFlushSize,
-        boolean bufferFlushDelay, long bufferMaxSize,
-        long size, long watchTimeout, ContainerProtos.ChecksumType checksumType,
-        int bytesPerChecksum,
-        XceiverClientManager xceiverClientManager, long openID) {
+      String src,
+      int chunkSize, String requestId, HddsProtos.ReplicationFactor factor,
+      HddsProtos.ReplicationType type,
+      int bufferSize, long bufferFlushSize,
+      boolean bufferFlushDelay, long bufferMaxSize,
+      long size, long watchTimeout, ContainerProtos.ChecksumType checksumType,
+      int bytesPerChecksum,
+      XceiverClientManager xceiverClientManager, long openID,
+      HdfsFileStatus stat) {
     streamEntries = new ArrayList<>();
     currentStreamIndex = 0;
     this.dfsClient = dfsClient;
@@ -92,6 +96,7 @@ public class BlockOutputStreamEntryPool {
     this.checksumType = checksumType;
     this.openID = openID;
     this.excludeList = new ExcludeList();
+    this.stat = stat;
 
     Preconditions.checkState(chunkSize > 0);
     Preconditions.checkState(streamBufferSize > 0);
@@ -142,21 +147,22 @@ public class BlockOutputStreamEntryPool {
     excludeList = new ExcludeList();
 
     src = "";
+    stat = null;
   }
 
-  private void addKeyLocationInfo(HDDSLocationInfo subKeyInfo)
+  private void addKeyLocationInfo(HDDSLocationInfo hddsLocationInfo)
       throws IOException {
-    Preconditions.checkNotNull(subKeyInfo.getPipeline());
-    UserGroupInformation.getCurrentUser().addToken(subKeyInfo.getToken());
+    Preconditions.checkNotNull(hddsLocationInfo.getPipeline());
+    UserGroupInformation.getCurrentUser().addToken(hddsLocationInfo.getToken());
     BlockOutputStreamEntry.Builder builder =
         new BlockOutputStreamEntry.Builder()
-            .setBlockID(subKeyInfo.getBlockID())
+            .setBlockID(hddsLocationInfo.getBlockID())
             .setKey(src)
             .setXceiverClientManager(xceiverClientManager)
-            .setPipeline(subKeyInfo.getPipeline())
+            .setPipeline(hddsLocationInfo.getPipeline())
             .setRequestId(requestID)
             .setChunkSize(chunkSize)
-            .setLength(subKeyInfo.getLength())
+            .setLength(hddsLocationInfo.getLength())
             .setStreamBufferSize(streamBufferSize)
             .setStreamBufferFlushSize(streamBufferFlushSize)
             .setStreamBufferFlushDelay(streamBufferFlushDelay)
@@ -165,8 +171,9 @@ public class BlockOutputStreamEntryPool {
             .setbufferPool(bufferPool)
             .setChecksumType(checksumType)
             .setBytesPerChecksum(bytesPerChecksum)
-            .setToken(subKeyInfo.getToken());
+            .setToken(hddsLocationInfo.getToken());
     streamEntries.add(builder.build());
+    this.currentBlock = hddsLocationInfo;
   }
 
   public List<HDDSLocationInfo> getLocationInfoList()  {
@@ -248,15 +255,25 @@ public class BlockOutputStreamEntryPool {
     if (!excludeList.isEmpty()) {
       LOG.info("Allocating block with {}", excludeList);
     }
+    // update the currentBlock length
+    if (currentBlock != null && streamEntries.size() > 0) {
+      long lastBlockLength =
+          streamEntries.get(streamEntries.size() - 1).getCurrentPosition();
+      currentBlock.setLength(lastBlockLength);
+    }
     HDDSLocationInfo hddsLocationInfo =
-        dfsClient.allocateBlock(src, openID, excludeList);
+        dfsClient.allocateBlock(src, dfsClient.getClientName(), currentBlock,
+            excludeList, stat.getFileId(), openID);
     addKeyLocationInfo(hddsLocationInfo);
   }
 
-
   void commitKey(long offset) throws IOException {
     if (src != null) {
-      dfsClient.getNamenode().complete(src, dfsClient.getClientName(), null, openID);
+      long lastBlockLength =
+          streamEntries.get(streamEntries.size() - 1).getCurrentPosition();
+      currentBlock.setLength(lastBlockLength);
+      dfsClient.getNamenode().completeHDDSFile(src,
+          dfsClient.getClientName(), currentBlock, stat.getFileId());
     } else {
       LOG.warn("Closing KeyOutputStream, but key args is null");
     }

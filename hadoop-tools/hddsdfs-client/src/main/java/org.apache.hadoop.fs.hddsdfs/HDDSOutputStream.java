@@ -32,12 +32,12 @@ import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerExcep
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdfs.DFSClient;
+import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.io.retry.RetryPolicies;
 import org.apache.hadoop.io.retry.RetryPolicy;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor;
 import org.apache.hadoop.hdds.scm.XceiverClientManager;
-import org.apache.hadoop.ozone.om.helpers.OpenKeySession;
 import org.apache.ratis.protocol.AlreadyClosedException;
 import org.apache.ratis.protocol.RaftRetryFailureException;
 import org.slf4j.Logger;
@@ -122,20 +122,21 @@ public class HDDSOutputStream extends OutputStream {
   }
 
   @SuppressWarnings({"parameternumber", "squid:S00107"})
-  public HDDSOutputStream(String src, OpenKeySession handler,
-                         XceiverClientManager xceiverClientManager,
-                         DFSClient omClient, int chunkSize,
-                         String requestId, ReplicationFactor factor, ReplicationType type,
-                         int bufferSize, long bufferFlushSize, boolean isBufferFlushDelay,
-                         long bufferMaxSize, long size, long watchTimeout,
-                         ChecksumType checksumType, int bytesPerChecksum,
-                         int maxRetryCount, long retryInterval) {
+  public HDDSOutputStream(String src,
+      XceiverClientManager xceiverClientManager,
+      DFSClient hddsClient, int chunkSize,
+      String requestId, ReplicationFactor factor, ReplicationType type,
+      int bufferSize, long bufferFlushSize, boolean isBufferFlushDelay,
+      long bufferMaxSize, long size, long watchTimeout,
+      ChecksumType checksumType, int bytesPerChecksum,
+      int maxRetryCount, long retryInterval,
+      HdfsFileStatus stat) {
     blockOutputStreamEntryPool =
-        new BlockOutputStreamEntryPool(omClient, src, chunkSize, requestId, factor,
+        new BlockOutputStreamEntryPool(hddsClient, src, chunkSize, requestId, factor,
             type, bufferSize, bufferFlushSize, isBufferFlushDelay,
             bufferMaxSize, size,
             watchTimeout, checksumType, bytesPerChecksum,
-            xceiverClientManager, 0);
+            xceiverClientManager, 0, stat);
     // Retrieve the file encryption key info, null if file is not in
     // encrypted bucket.
     this.feInfo = null;
@@ -215,7 +216,8 @@ public class HDDSOutputStream extends OutputStream {
   }
 
   private int writeToOutputStream(BlockOutputStreamEntry current,
-                                  boolean retry, long len, byte[] b, int writeLen, int off, long currentPos)
+      boolean retry, long len, byte[] b, int writeLen, int off,
+      long currentPos)
       throws IOException {
     try {
       if (retry) {
@@ -257,7 +259,7 @@ public class HDDSOutputStream extends OutputStream {
    * @throws IOException Throws IOException if Write fails
    */
   private void handleException(BlockOutputStreamEntry streamEntry,
-                               IOException exception) throws IOException {
+      IOException exception) throws IOException {
     Throwable t = HddsClientUtils.checkForException(exception);
     Preconditions.checkNotNull(t);
     boolean retryFailure = checkForRetryFailure(t);
@@ -338,7 +340,8 @@ public class HDDSOutputStream extends OutputStream {
     closed = true;
   }
 
-  private void handleRetry(IOException exception, long len) throws IOException {
+  private void handleRetry(IOException exception, long len)
+      throws IOException {
     RetryPolicy retryPolicy = retryPolicyMap
         .get(HddsClientUtils.checkForException(exception).getClass());
     if (retryPolicy == null) {
@@ -452,7 +455,7 @@ public class HDDSOutputStream extends OutputStream {
   }
 
   private void handleStreamAction(BlockOutputStreamEntry entry,
-                                  StreamAction op) throws IOException {
+      StreamAction op) throws IOException {
     Collection<DatanodeDetails> failedServers = entry.getFailedServers();
     // failed servers can be null in case there is no data written in
     // the stream
@@ -512,7 +515,6 @@ public class HDDSOutputStream extends OutputStream {
    * Builder class of KeyOutputStream.
    */
   public static class Builder {
-    private OpenKeySession openHandler;
     private XceiverClientManager xceiverManager;
     private DFSClient omClient;
     private int chunkSize;
@@ -530,11 +532,7 @@ public class HDDSOutputStream extends OutputStream {
     private int maxRetryCount;
     private long retryInterval;
     private String src;
-
-    public Builder setHandler(OpenKeySession handler) {
-      this.openHandler = handler;
-      return this;
-    }
+    private HdfsFileStatus stat;
 
     public Builder setXceiverClientManager(XceiverClientManager manager) {
       this.xceiverManager = manager;
@@ -617,13 +615,18 @@ public class HDDSOutputStream extends OutputStream {
     }
 
     public HDDSOutputStream build() {
-      return new HDDSOutputStream(src, openHandler, xceiverManager, omClient,
+      return new HDDSOutputStream(src, xceiverManager, omClient,
           chunkSize, requestID, factor, type,
           streamBufferSize, streamBufferFlushSize, streamBufferFlushDelay,
           streamBufferMaxSize,
           blockSize, watchTimeout, checksumType,
           bytesPerChecksum,
-          maxRetryCount, retryInterval);
+          maxRetryCount, retryInterval, stat);
+    }
+
+    public Builder setStat(HdfsFileStatus stat) {
+      this.stat = stat;
+      return this;
     }
   }
 

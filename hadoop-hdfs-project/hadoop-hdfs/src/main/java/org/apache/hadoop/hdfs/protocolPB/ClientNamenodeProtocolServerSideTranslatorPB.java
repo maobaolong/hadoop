@@ -33,6 +33,8 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.ha.HAServiceProtocol;
 import org.apache.hadoop.ha.proto.HAServiceProtocolProtos;
 import org.apache.hadoop.ha.proto.HAServiceProtocolProtos.HAServiceStateProto;
+import org.apache.hadoop.hdds.HDDSFileStatus;
+import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.AddBlockFlag;
@@ -421,6 +423,10 @@ public class ClientNamenodeProtocolServerSideTranslatorPB implements
   private static final SatisfyStoragePolicyResponseProto
       VOID_SATISFYSTORAGEPOLICY_RESPONSE = SatisfyStoragePolicyResponseProto
       .getDefaultInstance();
+
+  private static final ClientNamenodeSCMProtocolProtos.GetHDDSLocatedFileInfoResponseProto
+      VOID_GETHDDSLOCATEDFILEINFO_RESPONSE =
+      ClientNamenodeSCMProtocolProtos.GetHDDSLocatedFileInfoResponseProto.newBuilder().build();
 
   /**
    * Constructor
@@ -1966,11 +1972,47 @@ public class ClientNamenodeProtocolServerSideTranslatorPB implements
           request.getExcludeList());
       ClientNamenodeSCMProtocolProtos.HddsLocation
           hddsLocation =
-          server.allocateBlock(request.getSrc(), request.getClientID(), excludeList)
+          server.allocateBlock(request.getSrc(), request.getClientName(),
+              HDDSLocationInfo.getFromProtobuf(request.getPrevious()),
+              excludeList, request.getFileId(), request.getClientID())
               .getProtobuf();
       return ClientNamenodeSCMProtocolProtos.AllocateBlockResponse.newBuilder()
           .setHddsLocation(hddsLocation)
           .build();
+    } catch (IOException e) {
+      throw new ServiceException(e);
+    }
+  }
+
+  @Override
+  public ClientNamenodeSCMProtocolProtos.GetHDDSLocatedFileInfoResponseProto getHDDSLocatedFileInfo(
+      RpcController controller, GetLocatedFileInfoRequestProto req)
+      throws ServiceException {
+    try {
+      HDDSFileStatus result = server.getHDDSLocatedFileInfo(req.getSrc(),
+          req.getNeedBlockToken());
+      if (result != null) {
+        return ClientNamenodeSCMProtocolProtos.GetHDDSLocatedFileInfoResponseProto
+            .newBuilder().setFs(PBHelperClient.convert(result)).build();
+      }
+      return VOID_GETHDDSLOCATEDFILEINFO_RESPONSE;
+    } catch (IOException e) {
+      throw new ServiceException(e);
+    }
+  }
+
+  @Override
+  public ClientNamenodeSCMProtocolProtos.CompleteHDDSFileResponseProto completeHDDSFile(
+      RpcController controller,
+      ClientNamenodeSCMProtocolProtos.CompleteHDDSFileRequestProto req)
+      throws ServiceException {
+    try {
+      boolean result =
+          server.completeHDDSFile(req.getSrc(), req.getClientName(),
+              req.hasLast() ? HDDSLocationInfo.getFromProtobuf(req.getLast()) : null,
+              req.hasFileId() ? req.getFileId() : HdfsConstants.GRANDFATHER_INODE_ID);
+      return ClientNamenodeSCMProtocolProtos.
+          CompleteHDDSFileResponseProto.newBuilder().setResult(result).build();
     } catch (IOException e) {
       throw new ServiceException(e);
     }

@@ -5,6 +5,8 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.crypto.CryptoProtocolVersion;
 import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdds.HDDSFileStatus;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
 import org.apache.hadoop.hdds.client.ReplicationFactor;
 import org.apache.hadoop.hdds.client.ReplicationType;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -22,13 +24,12 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc.RemoteException;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.OzoneConsts;
-import org.apache.hadoop.ozone.om.OMConfigKeys;
-import org.apache.hadoop.ozone.web.utils.OzoneUtils;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.util.DataChecksum;
 import org.apache.hadoop.util.Progressable;
 import org.apache.htrace.core.TraceScope;
 import org.apache.ratis.protocol.ClientId;
+import org.apache.ratis.util.TimeDuration;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -36,6 +37,7 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.EnumSet;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 public class HDDSClient extends DFSClient {
   private static final int CREATE_RETRY_COUNT = 10;
@@ -59,7 +61,6 @@ public class HDDSClient extends DFSClient {
   private final long retryInterval;
   private Text dtService;
   private final boolean topologyAwareReadEnabled;
-  private final boolean checkKeyNameEnabled;
 
   public HDDSClient(Configuration conf)
       throws IOException {
@@ -67,25 +68,24 @@ public class HDDSClient extends DFSClient {
   }
 
   public HDDSClient(InetSocketAddress address,
-                    Configuration conf) throws IOException {
+      Configuration conf) throws IOException {
     this(DFSUtilClient.getNNUri(address), conf);
   }
 
   public HDDSClient(URI nameNodeUri,
-                    Configuration conf) throws IOException {
+      Configuration conf) throws IOException {
     this(nameNodeUri, conf, null);
   }
 
   public HDDSClient(URI nameNodeUri, Configuration conf,
-                    FileSystem.Statistics stats)
+      FileSystem.Statistics stats)
       throws IOException {
     this(nameNodeUri, null, conf, stats);
   }
 
   public HDDSClient(URI nameNodeUri,
-                    ClientProtocol rpcNamenode,
-                    Configuration hadoopConf,
-                    FileSystem.Statistics stats) throws IOException {
+      ClientProtocol rpcNamenode, Configuration hadoopConf,
+      FileSystem.Statistics stats) throws IOException {
     super(nameNodeUri, rpcNamenode, hadoopConf, stats);
     OzoneConfiguration conf = OzoneConfiguration.of(hadoopConf);
     String replicationTypeConf =
@@ -156,23 +156,26 @@ public class HDDSClient extends DFSClient {
     maxRetryCount =
         conf.getInt(OzoneConfigKeys.OZONE_CLIENT_MAX_RETRIES, OzoneConfigKeys.
             OZONE_CLIENT_MAX_RETRIES_DEFAULT);
-    retryInterval = OzoneUtils.getTimeDurationInMS(conf,
+    TimeUnit defaultTimeUnit =
+        OzoneConfigKeys.OZONE_CLIENT_RETRY_INTERVAL_DEFAULT.getUnit();
+    long timeDurationInDefaultUnit = conf.getTimeDuration(
         OzoneConfigKeys.OZONE_CLIENT_RETRY_INTERVAL,
-        OzoneConfigKeys.OZONE_CLIENT_RETRY_INTERVAL_DEFAULT);
+        OzoneConfigKeys.OZONE_CLIENT_RETRY_INTERVAL_DEFAULT.getDuration(),
+        defaultTimeUnit);
+    retryInterval = TimeDuration
+        .valueOf(timeDurationInDefaultUnit, defaultTimeUnit)
+        .toLong(TimeUnit.MILLISECONDS);
     topologyAwareReadEnabled = conf.getBoolean(
         OzoneConfigKeys.OZONE_NETWORK_TOPOLOGY_AWARE_READ_KEY,
         OzoneConfigKeys.OZONE_NETWORK_TOPOLOGY_AWARE_READ_DEFAULT);
-    checkKeyNameEnabled = conf.getBoolean(
-        OMConfigKeys.OZONE_OM_KEYNAME_CHARACTER_CHECK_ENABLED_KEY,
-        OMConfigKeys.OZONE_OM_KEYNAME_CHARACTER_CHECK_ENABLED_DEFAULT);
   }
 
   @Override
   public DFSOutputStream create(String src, FsPermission permission,
-                                EnumSet<CreateFlag> flag, boolean createParent, short replication,
-                                long blockSize, Progressable progress, int buffersize,
-                                Options.ChecksumOpt checksumOpt, InetSocketAddress[] favoredNodes,
-                                String ecPolicyName) throws IOException {
+      EnumSet<CreateFlag> flag, boolean createParent, short replication,
+      long blockSize, Progressable progress, int buffersize,
+      Options.ChecksumOpt checksumOpt, InetSocketAddress[] favoredNodes,
+      String ecPolicyName) throws IOException {
     checkOpen();
     final FsPermission masked = applyUMask(permission);
     LOG.debug("{}: masked={}", src, masked);
@@ -187,12 +190,12 @@ public class HDDSClient extends DFSClient {
 
 
   public HDDSOutputStream newStreamForCreate(String src,
-                                             FsPermission masked, EnumSet<CreateFlag> flag, boolean createParent,
-                                             short replication, long blockSize, Progressable progress,
-                                             DataChecksum checksum)
+        FsPermission masked, EnumSet<CreateFlag> flag, boolean createParent,
+        short replication, long blockSize, Progressable progress,
+        DataChecksum checksum)
       throws IOException {
     try (TraceScope ignored =
-             newPathTraceScope("newStreamForCreate", src.toString())) {
+             newPathTraceScope("newStreamForCreate", src)) {
       HdfsFileStatus stat = null;
 
       masked = applyUMask(masked);
@@ -239,6 +242,7 @@ public class HDDSClient extends DFSClient {
           .setXceiverClientManager(xceiverClientManager)
           .setOmClient(this)
           .setSrc(src)
+          .setStat(stat)
           .setChunkSize(chunkSize)
           .setRequestID(UUID.randomUUID().toString())
           .setType(HddsProtos.ReplicationType.valueOf(replicationType.toString()))
@@ -257,6 +261,40 @@ public class HDDSClient extends DFSClient {
     }
   }
 
+  public HDDSInputStream openHDDS(HdfsPathHandle fd, int buffersize,
+      boolean verifyChecksum) throws IOException {
+    checkOpen();
+    String src = fd.getPath();
+    return openHDDS(src, buffersize, verifyChecksum);
+  }
 
+  public HDDSInputStream openHDDS(String src, int buffersize,
+      boolean verifyChecksum) throws IOException {
+    checkOpen();
+    try (TraceScope ignored = newPathTraceScope("newDFSInputStream", src)) {
+      HDDSFileStatus s = getHDDSLocatedFileInfo(src, true);
+//      fd.verify(s); // check invariants in path handle
+      HDDSLocatedBlocks locatedBlocks = s.getLocatedBlocks();
+      return HDDSInputStream.getFromSrc(src, locatedBlocks, xceiverClientManager, verifyChecksum, str -> {
+        try {
+          return getHDDSLocatedFileInfo(str, true);
+        } catch (IOException e) {
+          LOG.error("Unable to lookup key {} on retry.", str, e);
+          return null;
+        }
+      });
+    }
+  }
 
+  public HDDSFileStatus getHDDSLocatedFileInfo(String src,
+      boolean needBlockToken) throws IOException {
+    checkOpen();
+    try (TraceScope ignored = newPathTraceScope("getLocatedFileInfo", src)) {
+      return getNamenode().getHDDSLocatedFileInfo(src, needBlockToken);
+    } catch (RemoteException re) {
+      throw re.unwrapRemoteException(AccessControlException.class,
+          FileNotFoundException.class,
+          UnresolvedPathException.class);
+    }
+  }
 }
