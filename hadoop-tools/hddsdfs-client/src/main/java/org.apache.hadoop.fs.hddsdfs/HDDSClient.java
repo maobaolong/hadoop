@@ -68,25 +68,24 @@ public class HDDSClient extends DFSClient {
   }
 
   public HDDSClient(InetSocketAddress address,
-                    Configuration conf) throws IOException {
+      Configuration conf) throws IOException {
     this(DFSUtilClient.getNNUri(address), conf);
   }
 
   public HDDSClient(URI nameNodeUri,
-                    Configuration conf) throws IOException {
+      Configuration conf) throws IOException {
     this(nameNodeUri, conf, null);
   }
 
   public HDDSClient(URI nameNodeUri, Configuration conf,
-                    FileSystem.Statistics stats)
+      FileSystem.Statistics stats)
       throws IOException {
     this(nameNodeUri, null, conf, stats);
   }
 
   public HDDSClient(URI nameNodeUri,
-                    ClientProtocol rpcNamenode,
-                    Configuration hadoopConf,
-                    FileSystem.Statistics stats) throws IOException {
+      ClientProtocol rpcNamenode, Configuration hadoopConf,
+      FileSystem.Statistics stats) throws IOException {
     super(nameNodeUri, rpcNamenode, hadoopConf, stats);
     OzoneConfiguration conf = OzoneConfiguration.of(hadoopConf);
     String replicationTypeConf =
@@ -173,10 +172,10 @@ public class HDDSClient extends DFSClient {
 
   @Override
   public DFSOutputStream create(String src, FsPermission permission,
-                                EnumSet<CreateFlag> flag, boolean createParent, short replication,
-                                long blockSize, Progressable progress, int buffersize,
-                                Options.ChecksumOpt checksumOpt, InetSocketAddress[] favoredNodes,
-                                String ecPolicyName) throws IOException {
+      EnumSet<CreateFlag> flag, boolean createParent, short replication,
+      long blockSize, Progressable progress, int buffersize,
+      Options.ChecksumOpt checksumOpt, InetSocketAddress[] favoredNodes,
+      String ecPolicyName) throws IOException {
     checkOpen();
     final FsPermission masked = applyUMask(permission);
     LOG.debug("{}: masked={}", src, masked);
@@ -191,9 +190,9 @@ public class HDDSClient extends DFSClient {
 
 
   public HDDSOutputStream newStreamForCreate(String src,
-                                             FsPermission masked, EnumSet<CreateFlag> flag, boolean createParent,
-                                             short replication, long blockSize, Progressable progress,
-                                             DataChecksum checksum)
+        FsPermission masked, EnumSet<CreateFlag> flag, boolean createParent,
+        short replication, long blockSize, Progressable progress,
+        DataChecksum checksum)
       throws IOException {
     try (TraceScope ignored =
              newPathTraceScope("newStreamForCreate", src)) {
@@ -263,14 +262,14 @@ public class HDDSClient extends DFSClient {
   }
 
   public HDDSInputStream openHDDS(HdfsPathHandle fd, int buffersize,
-                             boolean verifyChecksum) throws IOException {
+      boolean verifyChecksum) throws IOException {
     checkOpen();
     String src = fd.getPath();
     return openHDDS(src, buffersize, verifyChecksum);
   }
 
   public HDDSInputStream openHDDS(String src, int buffersize,
-                                  boolean verifyChecksum) throws IOException {
+      boolean verifyChecksum) throws IOException {
     checkOpen();
     try (TraceScope ignored = newPathTraceScope("newDFSInputStream", src)) {
       HDDSFileStatus s = getHDDSLocatedFileInfo(src, true);
@@ -288,7 +287,7 @@ public class HDDSClient extends DFSClient {
   }
 
   public HDDSFileStatus getHDDSLocatedFileInfo(String src,
-                                           boolean needBlockToken) throws IOException {
+      boolean needBlockToken) throws IOException {
     checkOpen();
     try (TraceScope ignored = newPathTraceScope("getLocatedFileInfo", src)) {
       return getNamenode().getHDDSLocatedFileInfo(src, needBlockToken);

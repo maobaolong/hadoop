@@ -123,14 +123,14 @@ public class HDDSOutputStream extends OutputStream {
 
   @SuppressWarnings({"parameternumber", "squid:S00107"})
   public HDDSOutputStream(String src,
-                         XceiverClientManager xceiverClientManager,
-                         DFSClient hddsClient, int chunkSize,
-                         String requestId, ReplicationFactor factor, ReplicationType type,
-                         int bufferSize, long bufferFlushSize, boolean isBufferFlushDelay,
-                         long bufferMaxSize, long size, long watchTimeout,
-                         ChecksumType checksumType, int bytesPerChecksum,
-                         int maxRetryCount, long retryInterval,
-                         HdfsFileStatus stat) {
+      XceiverClientManager xceiverClientManager,
+      DFSClient hddsClient, int chunkSize,
+      String requestId, ReplicationFactor factor, ReplicationType type,
+      int bufferSize, long bufferFlushSize, boolean isBufferFlushDelay,
+      long bufferMaxSize, long size, long watchTimeout,
+      ChecksumType checksumType, int bytesPerChecksum,
+      int maxRetryCount, long retryInterval,
+      HdfsFileStatus stat) {
     blockOutputStreamEntryPool =
         new BlockOutputStreamEntryPool(hddsClient, src, chunkSize, requestId, factor,
             type, bufferSize, bufferFlushSize, isBufferFlushDelay,
@@ -216,7 +216,8 @@ public class HDDSOutputStream extends OutputStream {
   }
 
   private int writeToOutputStream(BlockOutputStreamEntry current,
-                                  boolean retry, long len, byte[] b, int writeLen, int off, long currentPos)
+      boolean retry, long len, byte[] b, int writeLen, int off,
+      long currentPos)
       throws IOException {
     try {
       if (retry) {
@@ -258,7 +259,7 @@ public class HDDSOutputStream extends OutputStream {
    * @throws IOException Throws IOException if Write fails
    */
   private void handleException(BlockOutputStreamEntry streamEntry,
-                               IOException exception) throws IOException {
+      IOException exception) throws IOException {
     Throwable t = HddsClientUtils.checkForException(exception);
     Preconditions.checkNotNull(t);
     boolean retryFailure = checkForRetryFailure(t);
@@ -339,7 +340,8 @@ public class HDDSOutputStream extends OutputStream {
     closed = true;
   }
 
-  private void handleRetry(IOException exception, long len) throws IOException {
+  private void handleRetry(IOException exception, long len)
+      throws IOException {
     RetryPolicy retryPolicy = retryPolicyMap
         .get(HddsClientUtils.checkForException(exception).getClass());
     if (retryPolicy == null) {
@@ -453,7 +455,7 @@ public class HDDSOutputStream extends OutputStream {
   }
 
   private void handleStreamAction(BlockOutputStreamEntry entry,
-                                  StreamAction op) throws IOException {
+      StreamAction op) throws IOException {
     Collection<DatanodeDetails> failedServers = entry.getFailedServers();
     // failed servers can be null in case there is no data written in
     // the stream

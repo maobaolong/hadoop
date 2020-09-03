@@ -53,9 +53,9 @@ public class HDDSFilesystem extends DistributedFileSystem {
 
   @Override
   public FSDataOutputStream create(final Path f, final FsPermission permission,
-                                   final EnumSet<CreateFlag> cflags, final int bufferSize,
-                                   final short replication, final long blockSize,
-                                   final Progressable progress, final Options.ChecksumOpt checksumOpt)
+      final EnumSet<CreateFlag> cflags, final int bufferSize,
+      final short replication, final long blockSize,
+      final Progressable progress, final Options.ChecksumOpt checksumOpt)
       throws IOException {
     statistics.incrementWriteOps(1);
     storageStatistics.incrementOpCounter(DFSOpsCountStatistics.OpType.CREATE);
@@ -64,8 +64,10 @@ public class HDDSFilesystem extends DistributedFileSystem {
       @Override
       public FSDataOutputStream doCall(final Path p) throws IOException {
         final FSDataOutputStream fsos = new FSDataOutputStream(
-            getHDDSClient().newStreamForCreate(getPathName(p), permission, cflags, true, replication,
-                blockSize, progress, dfs.getConf().createChecksum(checksumOpt)), statistics);
+            getHDDSClient().newStreamForCreate(
+                getPathName(p), permission, cflags, true,
+                replication, blockSize, progress,
+                dfs.getConf().createChecksum(checksumOpt)), statistics);
 
         return fsos;
       }

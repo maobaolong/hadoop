@@ -62,13 +62,13 @@ public final class BlockOutputStreamEntry extends OutputStream {
 
   @SuppressWarnings({"parameternumber", "squid:S00107"})
   private BlockOutputStreamEntry(BlockID blockID, String key,
-                                 XceiverClientManager xceiverClientManager,
-                                 Pipeline pipeline, String requestId, int chunkSize,
-                                 long length, int streamBufferSize, long streamBufferFlushSize,
-                                 boolean streamBufferFlushDelay, long streamBufferMaxSize,
-                                 long watchTimeout, BufferPool bufferPool,
-                                 ChecksumType checksumType, int bytesPerChecksum,
-                                 Token<OzoneBlockTokenIdentifier> token) {
+      XceiverClientManager xceiverClientManager,
+      Pipeline pipeline, String requestId, int chunkSize,
+      long length, int streamBufferSize, long streamBufferFlushSize,
+      boolean streamBufferFlushDelay, long streamBufferMaxSize,
+      long watchTimeout, BufferPool bufferPool,
+      ChecksumType checksumType, int bytesPerChecksum,
+      Token<OzoneBlockTokenIdentifier> token) {
     this.outputStream = null;
     this.blockID = blockID;
     this.key = key;

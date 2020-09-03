@@ -81,9 +81,10 @@ public class HDDSInputStream extends FSInputStream implements Seekable {
   /**
    * For each block in keyInfo, add a BlockInputStream to blockStreams.
    */
-  public static HDDSInputStream getFromSrc(String src, HDDSLocatedBlocks locatedBlocks,
-                                           XceiverClientManager xceiverClientManager,
-                                           boolean verifyChecksum, Function<String, HDDSFileStatus> retryFunction) {
+  public static HDDSInputStream getFromSrc(String src,
+      HDDSLocatedBlocks locatedBlocks,
+      XceiverClientManager xceiverClientManager,
+      boolean verifyChecksum, Function<String, HDDSFileStatus> retryFunction) {
     HDDSInputStream inputStream = new HDDSInputStream();
     inputStream.initialize(src, locatedBlocks.getLocatedBlocks(),
         xceiverClientManager, verifyChecksum, retryFunction);
@@ -92,9 +93,9 @@ public class HDDSInputStream extends FSInputStream implements Seekable {
   }
 
   private synchronized void initialize(String src,
-                                       List<HDDSLocationInfo> blockInfos,
-                                       XceiverClientManager xceiverClientManager,
-                                       boolean verifyChecksum, Function<String, HDDSFileStatus> retryFunction) {
+      List<HDDSLocationInfo> blockInfos,
+      XceiverClientManager xceiverClientManager,
+      boolean verifyChecksum, Function<String, HDDSFileStatus> retryFunction) {
     this.key = src;
     this.blockOffsets = new long[blockInfos.size()];
     long keyLength = 0;
@@ -136,9 +137,9 @@ public class HDDSInputStream extends FSInputStream implements Seekable {
    * the block for the first time.
    */
   private synchronized void addStream(HDDSLocationInfo blockInfo,
-                                      XceiverClientManager xceiverClientMngr,
-                                      boolean verifyChecksum,
-                                      Function<HDDSLocationInfo, Pipeline> refreshPipelineFunction) {
+      XceiverClientManager xceiverClientMngr,
+      boolean verifyChecksum,
+      Function<HDDSLocationInfo, Pipeline> refreshPipelineFunction) {
     blockStreams.add(new BlockInputStream(blockInfo.getBlockID(),
         blockInfo.getLength(), blockInfo.getPipeline(), blockInfo.getToken(),
         verifyChecksum, xceiverClientMngr,

@@ -71,15 +71,15 @@ public class BlockOutputStreamEntryPool {
 
   @SuppressWarnings({"parameternumber", "squid:S00107"})
   public BlockOutputStreamEntryPool(DFSClient dfsClient,
-        String src,
-        int chunkSize, String requestId, HddsProtos.ReplicationFactor factor,
-        HddsProtos.ReplicationType type,
-        int bufferSize, long bufferFlushSize,
-        boolean bufferFlushDelay, long bufferMaxSize,
-        long size, long watchTimeout, ContainerProtos.ChecksumType checksumType,
-        int bytesPerChecksum,
-        XceiverClientManager xceiverClientManager, long openID,
-        HdfsFileStatus stat) {
+      String src,
+      int chunkSize, String requestId, HddsProtos.ReplicationFactor factor,
+      HddsProtos.ReplicationType type,
+      int bufferSize, long bufferFlushSize,
+      boolean bufferFlushDelay, long bufferMaxSize,
+      long size, long watchTimeout, ContainerProtos.ChecksumType checksumType,
+      int bytesPerChecksum,
+      XceiverClientManager xceiverClientManager, long openID,
+      HdfsFileStatus stat) {
     streamEntries = new ArrayList<>();
     currentStreamIndex = 0;
     this.dfsClient = dfsClient;
