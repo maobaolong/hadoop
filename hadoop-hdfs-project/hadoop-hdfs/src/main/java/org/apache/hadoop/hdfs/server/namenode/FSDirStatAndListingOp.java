@@ -41,6 +41,7 @@ import org.apache.hadoop.hdfs.protocol.HdfsLocatedFileStatus;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.protocol.SnapshotException;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
+import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
 import org.apache.hadoop.hdfs.server.namenode.FSDirectory.DirOp;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.DirectorySnapshottableFeature;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
@@ -222,21 +223,38 @@ class FSDirStatAndListingOp {
 
         List<HDDSLocationInfo> blks = new ArrayList<>();
         Set<Long> containerIDs = new HashSet<>();
-        for (HDDSLocationInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
+        for (HDDSServerLocationInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
           containerIDs.add(hddsLocationInfo.getContainerID());
         }
         Map<Long, ContainerWithPipeline> containerWithPipelineMap =
             fsd.getFSNamesystem().refreshPipeline(containerIDs);
-        for (HDDSLocationInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
+        for (HDDSServerLocationInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
           ContainerWithPipeline cp =
               containerWithPipelineMap.get(hddsLocationInfo.getContainerID());
           if (cp != null && !cp.getPipeline().equals(hddsLocationInfo.getPipeline())) {
             hddsLocationInfo.setPipeline(cp.getPipeline());
           }
-          blks.add(hddsLocationInfo);
+
+          HDDSLocationInfo info = new HDDSLocationInfo.Builder()
+              .setBlockID(hddsLocationInfo.getBlockID())
+              .setPipeline(hddsLocationInfo.getPipeline())
+              .setLength(hddsLocationInfo.getLength())
+              .setOffset(hddsLocationInfo.getOffset())
+              .setToken(hddsLocationInfo.getToken())
+              .build();
+          blks.add(info);
         }
+
+        HDDSServerLocationInfo last = fileNode.getLastHDDSBlock();
+        HDDSLocationInfo locationInfo = new HDDSLocationInfo.Builder()
+            .setBlockID(last.getBlockID())
+            .setPipeline(last.getPipeline())
+            .setLength(last.getLength())
+            .setOffset(last.getOffset())
+            .setToken(last.getToken())
+            .build();
         locatedBlocks = new HDDSLocatedBlocks(
-            fileSize, false, blks, fileNode.getLastHDDSBlock(), true, null, null);
+            fileSize, false, blks, locationInfo, true, null, null);
       }
     } else if (node.isDirectory()) {
       isSnapShottable = node.asDirectory().isSnapshottable();

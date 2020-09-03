@@ -139,6 +139,7 @@ import org.apache.hadoop.hdfs.protocol.SnapshotDiffReportListing;
 import org.apache.hadoop.hdfs.protocol.SnapshotException;
 import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.protocol.ZoneReencryptionStatus;
+import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
 import org.apache.hadoop.hdfs.server.namenode.metrics.ReplicatedBlocksMBean;
 import org.apache.hadoop.hdfs.server.protocol.SlowDiskReports;
 
@@ -8350,7 +8351,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
    * @throws IOException on error (eg lease mismatch, file not open, file deleted)
    */
   boolean completeHDDSFile(final String src, String holder,
-                       HDDSLocationInfo last, long fileId)
+      HDDSLocationInfo last, long fileId)
       throws IOException {
     boolean success = false;
     checkOperation(OperationCategory.WRITE);

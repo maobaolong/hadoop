@@ -152,6 +152,7 @@ import org.apache.hadoop.hdfs.security.token.block.ExportedBlockKeys;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManagerFaultInjector;
+import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.NamenodeRole;
 import org.apache.hadoop.hdfs.server.common.HttpGetFailedException;
@@ -2614,10 +2615,10 @@ public class NameNodeRpcServer implements NamenodeProtocols {
 
   @Override
   public HDDSLocationInfo allocateBlock(String src, String clientName,
-                                        HDDSLocationInfo previous,
-                                        ExcludeList excludeList,
-                                        long fileId,
-                                        long clientID)
+      HDDSLocationInfo previous,
+      ExcludeList excludeList,
+      long fileId,
+      long clientID)
       throws IOException {
     checkNNStartup();
     HDDSLocationInfo allocateBlock = namesystem.getAdditionalHDDSBlock(
@@ -2644,7 +2645,7 @@ public class NameNodeRpcServer implements NamenodeProtocols {
 
   @Override
   public boolean completeHDDSFile(String src, String clientName,
-                               HDDSLocationInfo last, long fileId)
+      HDDSLocationInfo last, long fileId)
       throws IOException {
     checkNNStartup();
     namesystem.completeHDDSFile(src, clientName, last, fileId);

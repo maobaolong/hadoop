@@ -50,6 +50,7 @@ import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoStriped;
+import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
 
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.protocol.BlockType;
@@ -284,7 +285,15 @@ class FSDirWriteFileOp {
 
     INodesInPath inodesInPath = INodesInPath.fromINode(pendingFile);
     final INodeFile fileINode = inodesInPath.getLastINode().asFile();
-    fileINode.addHDDSBlock(allocatedBlock);
+
+    HDDSServerLocationInfo info = new HDDSServerLocationInfo.Builder()
+        .setBlockID(allocatedBlock.getBlockID())
+        .setPipeline(allocatedBlock.getPipeline())
+        .setLength(allocatedBlock.getLength())
+        .setOffset(allocatedBlock.getOffset())
+        .setToken(allocatedBlock.getToken())
+        .build();
+    fileINode.addHDDSBlock(info);
     return allocatedBlock;
     // TODO(baoloongmao): logAllocatedBlock and persistNewBlock
   }
@@ -891,7 +900,7 @@ class FSDirWriteFileOp {
   }
 
   static boolean completeHDDSFile(FSNamesystem fsn, FSPermissionChecker pc,
-                              final String srcArg, String holder, HDDSLocationInfo last, long fileId)
+      final String srcArg, String holder, HDDSLocationInfo last, long fileId)
       throws IOException {
     String src = srcArg;
     if (NameNode.stateChangeLog.isDebugEnabled()) {
@@ -925,7 +934,7 @@ class FSDirWriteFileOp {
 //    }
 
     // commit the last block and complete it if it has minimum replicas
-    HDDSLocationInfo lastBlock = pendingFile.getLastHDDSBlock();
+    HDDSServerLocationInfo lastBlock = pendingFile.getLastHDDSBlock();
     lastBlock.setLength(last.getLength());
     return true;
   }
