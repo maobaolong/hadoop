@@ -90,7 +90,6 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_REPLICATION_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LISTING_LIMIT;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LISTING_LIMIT_DEFAULT;
 
-import org.apache.hadoop.conf.StorageUnit;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
