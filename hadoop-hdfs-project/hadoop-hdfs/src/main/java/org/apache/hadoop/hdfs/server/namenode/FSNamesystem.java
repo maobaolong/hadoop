@@ -90,16 +90,11 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_REPLICATION_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LISTING_LIMIT;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LISTING_LIMIT_DEFAULT;
 
-import org.apache.hadoop.conf.StorageUnit;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
-import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
-import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
-import org.apache.hadoop.hdds.scm.container.common.helpers.AllocatedBlock;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
-import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.scm.protocol.ScmBlockLocationProtocol;
 import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
 import org.apache.hadoop.hdds.scm.protocol.ScmClient;
@@ -147,10 +142,6 @@ import org.apache.hadoop.hdfs.protocol.ZoneReencryptionStatus;
 import org.apache.hadoop.hdfs.server.namenode.metrics.ReplicatedBlocksMBean;
 import org.apache.hadoop.hdfs.server.protocol.SlowDiskReports;
 
-import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_KEY_PREALLOCATION_BLOCKS_MAX;
-import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_KEY_PREALLOCATION_BLOCKS_MAX_DEFAULT;
-import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_SCM_BLOCK_SIZE;
-import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_SCM_BLOCK_SIZE_DEFAULT;
 import static org.apache.hadoop.util.Time.now;
 import static org.apache.hadoop.util.Time.monotonicNow;
 import static org.apache.hadoop.hdfs.server.namenode.top.metrics.TopMetrics.TOPMETRICS_METRICS_SOURCE_NAME;
@@ -609,8 +600,6 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   private String nameNodeHostName = null;
 
   private final ScmClient scmClient;
-  private final long scmBlockSize;
-  private final int preallocateBlocksMax;
 
   /**
    * Notify that loading of this FSDirectory is complete, and
@@ -826,12 +815,6 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       StorageContainerLocationProtocol scmContainerClient =
           ScmClient.getScmContainerClient(o3Conf);
       this.scmClient = new ScmClient(scmBlockClient, scmContainerClient);
-      this.scmBlockSize = (long) conf
-          .getStorageSize(OZONE_SCM_BLOCK_SIZE, OZONE_SCM_BLOCK_SIZE_DEFAULT,
-              StorageUnit.BYTES);
-      this.preallocateBlocksMax = conf.getInt(
-          OZONE_KEY_PREALLOCATION_BLOCKS_MAX,
-          OZONE_KEY_PREALLOCATION_BLOCKS_MAX_DEFAULT);
 
       // block manager needs the haEnabled initialized
       this.blockManager = new BlockManager(this, haEnabled, conf);
@@ -8276,68 +8259,54 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     }
   }
 
-  public HDDSLocationInfo allocateBlock(String src, String clientName,
-                                        HDDSLocationInfo previous,
-                                        ExcludeList excludeList,
-                                        long fileId, long clientId)
+  public HDDSLocationInfo getAdditionalHDDSBlock(String src, String clientName,
+      HDDSLocationInfo previous,
+      ExcludeList excludeList,
+      long fileId, long clientId)
       throws IOException {
-    // TODO(baoloongmao): replace args to src and fileId
-    List<HDDSLocationInfo> locationInfos =
-        allocateBlock(src, clientName, previous, excludeList, fileId,
-            clientId, scmBlockSize);
 
-    return locationInfos.get(0);
-  }
+    final String operationName = "allocateBlock";
+    NameNode.stateChangeLog.debug("BLOCK* allocateBlock: {}  inodeId {}" +
+        " for {}", src, fileId, clientName);
 
-  private List<HDDSLocationInfo> allocateBlock(String src, String clientName,
-       HDDSLocationInfo previous,
-       ExcludeList excludeList,
-       long fileId, long clientId, long requestedSize) throws IOException {
-    checkOperation(OperationCategory.WRITE);
-
-    int numBlocks = Math.min((int) ((requestedSize - 1) / scmBlockSize + 1),
-        preallocateBlocksMax);
-    List<HDDSLocationInfo> locationInfos = new ArrayList<>(numBlocks);
-    String remoteUser = getRemoteUser().getShortUserName();
-    List<AllocatedBlock> allocatedBlocks;
+    HDDSLocationInfo[] onRetryBlock = new HDDSLocationInfo[1];
+    FSDirWriteFileOp.ValidateAddBlockResult r;
+    checkOperation(OperationCategory.READ);
+    final FSPermissionChecker pc = getPermissionChecker();
+    readLock();
     try {
-      // TODO(baoloongmao): fix hardcode
-      allocatedBlocks = scmClient.getBlockClient()
-          .allocateBlock(scmBlockSize, numBlocks,
-              HddsProtos.ReplicationType.RATIS,
-              HddsProtos.ReplicationFactor.THREE,
-              getNamespaceInfo().getClusterID(),
-              excludeList);
-    } catch (SCMException ex) {
-      if (ex.getResult()
-          .equals(SCMException.ResultCodes.SAFE_MODE_EXCEPTION)) {
-        throw new IOException("SCM_IN_SAFE_MODE", ex);
-      }
-      throw ex;
+      checkOperation(OperationCategory.READ);
+      r = FSDirWriteFileOp.validateAddHDDSBlock(this, pc, src, fileId, clientName,
+          previous, onRetryBlock);
+    } finally {
+      readUnlock(operationName);
     }
-    for (AllocatedBlock allocatedBlock : allocatedBlocks) {
-      HDDSLocationInfo.Builder builder = new HDDSLocationInfo.Builder()
-          .setBlockID(new BlockID(allocatedBlock.getBlockID()))
-          .setLength(scmBlockSize)
-          .setOffset(0)
-          .setPipeline(allocatedBlock.getPipeline());
-      // TODO(baoloongmao): add block Token later
-      locationInfos.add(builder.build());
+
+    if (r == null) {
+      assert onRetryBlock[0] != null : "Retry block is null";
+      // This is a retry. Just return the last block.
+      return onRetryBlock[0];
     }
+
+    List<HDDSLocationInfo> locationInfos =
+        FSDirWriteFileOp.getHDDSBlockFromSCM(this, excludeList, r);
+
+    checkOperation(OperationCategory.WRITE);
     writeLock();
+    HDDSLocationInfo lb;
     try {
       checkOperation(OperationCategory.WRITE);
-      FSDirWriteFileOp.storeHDDSAllocatedBlock(
+      lb = FSDirWriteFileOp.storeHDDSAllocatedBlock(
           this, src, fileId, clientName, previous, locationInfos.get(0));
     } finally {
-      writeUnlock("allocateBlock");
+      writeUnlock(operationName);
     }
     getEditLog().logSync();
-    return locationInfos;
+    return lb;
   }
 
   HDDSFileStatus getHDDSFileInfo(final String src, boolean resolveLink,
-                                 boolean needLocation, boolean needBlockToken) throws IOException {
+      boolean needLocation, boolean needBlockToken) throws IOException {
     // TODO(baoloongmao): get the blockID and related information from InodeFile
     final String operationName = needBlockToken ? "openV2" : "getfileinfoV2";
     checkOperation(OperationCategory.READ);

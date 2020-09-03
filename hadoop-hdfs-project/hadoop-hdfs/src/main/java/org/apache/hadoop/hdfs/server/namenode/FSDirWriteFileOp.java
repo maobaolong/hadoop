@@ -21,7 +21,11 @@ import com.google.common.base.Preconditions;
 import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.fs.XAttrSetFlag;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.client.BlockID;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.container.common.helpers.AllocatedBlock;
+import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
+import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdfs.AddBlockFlag;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
@@ -267,13 +271,11 @@ class FSDirWriteFileOp {
     return makeLocatedBlock(fsn, fsn.getStoredBlock(newBlock), targets, offset);
   }
 
-  static void storeHDDSAllocatedBlock(FSNamesystem fsn, String src,
-                                          long fileId, String clientName, HDDSLocationInfo previous,
-                                              HDDSLocationInfo allocatedBlock) throws IOException {
-    long offset;
+  static HDDSLocationInfo storeHDDSAllocatedBlock(FSNamesystem fsn, String src,
+      long fileId, String clientName, HDDSLocationInfo previous,
+      HDDSLocationInfo allocatedBlock) throws IOException {
     // Run the full analysis again, since things could have changed
     // while chooseTarget() was executing.
-    LocatedBlock[] onRetryBlock = new LocatedBlock[1];
     INodesInPath iip = fsn.dir.resolvePath(null, src, fileId);
     final INodeFile file = fsn.checkLease(iip, clientName, fileId);
     FileState fileState = new FileState(file, src, iip);
@@ -283,7 +285,8 @@ class FSDirWriteFileOp {
     INodesInPath inodesInPath = INodesInPath.fromINode(pendingFile);
     final INodeFile fileINode = inodesInPath.getLastINode().asFile();
     fileINode.addHDDSBlock(allocatedBlock);
-    // TODO(baoloongmao): logAllocatedBlock and persist
+    return allocatedBlock;
+    // TODO(baoloongmao): logAllocatedBlock and persistNewBlock
   }
 
   static DatanodeStorageInfo[] chooseTargetForNewBlock(
@@ -925,5 +928,88 @@ class FSDirWriteFileOp {
     HDDSLocationInfo lastBlock = pendingFile.getLastHDDSBlock();
     lastBlock.setLength(last.getLength());
     return true;
+  }
+
+  static ValidateAddBlockResult validateAddHDDSBlock(
+      FSNamesystem fsn, FSPermissionChecker pc,
+      String src, long fileId, String clientName,
+      HDDSLocationInfo previous, HDDSLocationInfo[] onRetryBlock) throws IOException {
+    final long blockSize;
+    final short numTargets;
+    final byte storagePolicyID;
+    String clientMachine;
+    final BlockType blockType;
+
+    INodesInPath iip = fsn.dir.resolvePath(pc, src, fileId);
+//    FileState fileState = analyzeFileState(fsn, iip, fileId, clientName,
+//        previous, onRetryBlock);
+    final INodeFile file = fsn.checkLease(iip, clientName, fileId);
+    FileState fileState = new FileState(file, src, iip);
+    if (onRetryBlock[0] != null
+        && onRetryBlock[0].getPipeline().getNodes().size() > 0) {
+      // This is a retry. No need to generate new locations.
+      // Use the last block if it has locations.
+      return null;
+    }
+
+    final INodeFile pendingFile = fileState.inode;
+//    if (!fsn.checkFileProgress(src, pendingFile, false)) {
+//      throw new NotReplicatedYetException("Not replicated yet: " + src);
+//    }
+    if (pendingFile.getHddsBlocks().length >= fsn.maxBlocksPerFile) {
+      throw new IOException("File has reached the limit on maximum number of"
+          + " blocks (" + DFSConfigKeys.DFS_NAMENODE_MAX_BLOCKS_PER_FILE_KEY
+          + "): " + pendingFile.getBlocks().length + " >= "
+          + fsn.maxBlocksPerFile);
+    }
+    blockSize = pendingFile.getPreferredBlockSize();
+    clientMachine = pendingFile.getFileUnderConstructionFeature()
+        .getClientMachine();
+    blockType = pendingFile.getBlockType();
+    ErasureCodingPolicy ecPolicy = null;
+    if (blockType == BlockType.STRIPED) {
+      ecPolicy =
+          FSDirErasureCodingOp.unprotectedGetErasureCodingPolicy(fsn, iip);
+      numTargets = (short) (ecPolicy.getSchema().getNumDataUnits()
+          + ecPolicy.getSchema().getNumParityUnits());
+    } else {
+      numTargets = pendingFile.getFileReplication();
+    }
+    storagePolicyID = pendingFile.getStoragePolicyID();
+    return new ValidateAddBlockResult(blockSize, numTargets, storagePolicyID,
+        clientMachine, blockType, ecPolicy);
+  }
+
+  static List<HDDSLocationInfo> getHDDSBlockFromSCM(
+      FSNamesystem fs,
+      ExcludeList excludeList,
+      FSDirWriteFileOp.ValidateAddBlockResult r) throws IOException {
+    List<HDDSLocationInfo> locationInfos = new ArrayList<>(1);
+    List<AllocatedBlock> allocatedBlocks;
+    try {
+      // TODO(baoloongmao): check replication should be 1 or 3 now.
+      allocatedBlocks = fs.getScmClient().getBlockClient()
+          .allocateBlock(r.blockSize, 1,
+              HddsProtos.ReplicationType.RATIS,
+              HddsProtos.ReplicationFactor.valueOf(r.numTargets),
+              fs.getNamespaceInfo().getClusterID(),
+              excludeList);
+    } catch (SCMException ex) {
+      if (ex.getResult()
+          .equals(SCMException.ResultCodes.SAFE_MODE_EXCEPTION)) {
+        throw new IOException("SCM_IN_SAFE_MODE", ex);
+      }
+      throw ex;
+    }
+    for (AllocatedBlock allocatedBlock : allocatedBlocks) {
+      HDDSLocationInfo.Builder builder = new HDDSLocationInfo.Builder()
+          .setBlockID(new BlockID(allocatedBlock.getBlockID()))
+          .setLength(r.blockSize)
+          .setOffset(0)
+          .setPipeline(allocatedBlock.getPipeline());
+      // TODO(baoloongmao): add block Token later
+      locationInfos.add(builder.build());
+    }
+    return locationInfos;
   }
 }
