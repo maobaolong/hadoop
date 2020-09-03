@@ -103,7 +103,7 @@
     <ldap-api.version>1.0.0-M33</ldap-api.version>
 
     <!-- Apache HDDS version -->
-    <hdds.version>0.6.0-SNAPSHOT</hdds.version>
+    <hdds.version>1.0.0</hdds.version>
 
     <jcache.version>1.0-alpha-1</jcache.version>
     <ehcache.version>3.3.1</ehcache.version>
