@@ -294,6 +294,7 @@ class FSDirWriteFileOp {
         .setToken(allocatedBlock.getToken())
         .build();
     fileINode.addHDDSBlock(info);
+    //    persistNewBlock(fsn, src, pendingFile);
     return allocatedBlock;
     // TODO(baoloongmao): logAllocatedBlock and persistNewBlock
   }
@@ -444,7 +445,7 @@ class FSDirWriteFileOp {
     }
     setNewINodeStoragePolicy(fsd.getBlockManager(), iip, isLazyPersist);
     // TODO(baoloongmao): log edit later
-//    fsd.getEditLog().logOpenFile(src, newNode, overwrite, logRetryEntry);
+    fsd.getEditLog().logOpenFile(src, newNode, overwrite, logRetryEntry);
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* NameSystem.startFile: added " +
           src + " inode " + newNode.getId() + " " + holder);
@@ -934,8 +935,10 @@ class FSDirWriteFileOp {
 //    }
 
     // commit the last block and complete it if it has minimum replicas
-    HDDSServerLocationInfo lastBlock = pendingFile.getLastHDDSBlock();
-    lastBlock.setLength(last.getLength());
+    fsn.hddsCommitOrCompleteLastBlock(pendingFile, iip, last);
+
+    fsn.finalizeINodeFileUnderConstruction(src, pendingFile,
+        Snapshot.CURRENT_STATE_ID, true);
     return true;
   }
 
@@ -1020,5 +1023,32 @@ class FSDirWriteFileOp {
       locationInfos.add(builder.build());
     }
     return locationInfos;
+  }
+
+  static boolean unprotectedRemoveHDDSBlock(
+      FSDirectory fsd, String path, INodesInPath iip, INodeFile fileNode,
+      HDDSServerLocationInfo block) throws IOException {
+    // modify file-> block and blocksMap
+    // fileNode should be under construction
+    HDDSServerLocationInfo lastBlock = fileNode.removeHDDSLastBlock(block);
+    if (lastBlock == null) {
+      return false;
+    }
+//    if (uc.getUnderConstructionFeature() != null) {
+//      DatanodeStorageInfo.decrementBlocksScheduled(uc
+//          .getUnderConstructionFeature().getExpectedStorageLocations());
+//    }
+//    fsd.getBlockManager().removeBlockFromMap(uc);
+
+    if(NameNode.stateChangeLog.isDebugEnabled()) {
+      NameNode.stateChangeLog.debug("DIR* FSDirectory.removeBlock: "
+          +path+" with "+block
+          +" block is removed from the file system");
+    }
+
+    // update space consumed
+    fsd.updateCount(iip, 0, -fileNode.getPreferredBlockSize(),
+        fileNode.getPreferredBlockReplication(), true);
+    return true;
   }
 }

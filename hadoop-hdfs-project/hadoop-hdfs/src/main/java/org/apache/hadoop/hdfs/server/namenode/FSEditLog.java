@@ -813,7 +813,7 @@ public class FSEditLog implements LogsPurgeable {
       .setModificationTime(newNode.getModificationTime())
       .setAccessTime(newNode.getAccessTime())
       .setBlockSize(newNode.getPreferredBlockSize())
-      .setBlocks(newNode.getBlocks())
+      .setBlocks(newNode.getHddsBlocks())
       .setPermissionStatus(permissions)
       .setClientName(newNode.getFileUnderConstructionFeature().getClientName())
       .setClientMachine(
@@ -846,7 +846,7 @@ public class FSEditLog implements LogsPurgeable {
       .setModificationTime(newNode.getModificationTime())
       .setAccessTime(newNode.getAccessTime())
       .setBlockSize(newNode.getPreferredBlockSize())
-      .setBlocks(newNode.getBlocks())
+      .setBlocks(newNode.getHddsBlocks())
       .setPermissionStatus(newNode.getPermissionStatus());
     
     logEdit(op);
@@ -867,7 +867,7 @@ public class FSEditLog implements LogsPurgeable {
     Preconditions.checkArgument(file.isUnderConstruction());
     UpdateBlocksOp op = UpdateBlocksOp.getInstance(cache.get())
       .setPath(path)
-      .setBlocks(file.getBlocks());
+      .setBlocks(file.getHddsBlocks());
     logRpcIds(op, toLogRpcIds);
     logEdit(op);
   }
