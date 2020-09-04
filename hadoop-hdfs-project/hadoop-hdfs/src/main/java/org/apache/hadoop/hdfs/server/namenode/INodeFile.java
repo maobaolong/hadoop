@@ -359,7 +359,7 @@ public class INodeFile extends INodeWithAdditionalFields
   void toCompleteFile(long mtime, int numCommittedAllowed, short minReplication) {
     final FileUnderConstructionFeature uc = getFileUnderConstructionFeature();
     Preconditions.checkNotNull(uc, "File %s is not under construction", this);
-    assertAllBlocksComplete(numCommittedAllowed, minReplication);
+//    assertAllBlocksComplete(numCommittedAllowed, minReplication);
     removeFeature(uc);
     setModificationTime(mtime);
   }
@@ -451,6 +451,27 @@ public class INodeFile extends INodeWithAdditionalFields
     System.arraycopy(blocks, 0, newlist, 0, size_1);
     setBlocks(newlist);
     lastBlock.delete();
+    return lastBlock;
+  }
+
+  HDDSServerLocationInfo removeHDDSLastBlock(HDDSServerLocationInfo oldblock) {
+    Preconditions.checkState(isUnderConstruction(),
+        "file is no longer under construction");
+    if (hddsBlocks.length == 0) {
+      return null;
+    }
+    int size_1 = hddsBlocks.length - 1;
+    if (!hddsBlocks[size_1].equals(oldblock)) {
+      return null;
+    }
+
+    HDDSServerLocationInfo lastBlock = hddsBlocks[size_1];
+    //copy to a new list
+    BlockInfo[] newlist = new BlockInfo[size_1];
+    System.arraycopy(hddsBlocks, 0, newlist, 0, size_1);
+    setBlocks(newlist);
+    // TODO(baoloongmao): remove the block from scm.
+//    lastBlock.delete();
     return lastBlock;
   }
 

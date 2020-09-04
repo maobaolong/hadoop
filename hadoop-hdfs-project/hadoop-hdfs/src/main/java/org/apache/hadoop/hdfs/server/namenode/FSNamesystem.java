@@ -3587,10 +3587,12 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
 
   void hddsCommitOrCompleteLastBlock(
       final INodeFile fileINode, final INodesInPath iip,
-      final Block commitBlock) throws IOException {
+      final HDDSLocationInfo commitBlock) throws IOException {
     assert hasWriteLock();
-    Preconditions.checkArgument(fileINode.isUnderConstruction());
-    blockManager.commitOrCompleteLastBlock(fileINode, commitBlock, iip);
+//    Preconditions.checkArgument(fileINode.isUnderConstruction());
+//    blockManager.commitOrCompleteLastBlock(fileINode, commitBlock, iip);
+    HDDSServerLocationInfo lastBlock = fileINode.getLastHDDSBlock();
+    lastBlock.setLength(commitBlock.getLength());
   }
 
   void addCommittedBlocksToPending(final INodeFile pendingFile) {
@@ -3632,7 +3634,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     // close file and persist block allocations for this file
     closeFile(src, pendingFile);
 
-    blockManager.checkRedundancy(pendingFile);
+//    blockManager.checkRedundancy(pendingFile);
   }
 
   @VisibleForTesting
@@ -4069,7 +4071,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     // file is closed
     getEditLog().logCloseFile(path, file);
     NameNode.stateChangeLog.debug("closeFile: {} with {} blocks is persisted" +
-        " to the file system", path, file.getBlocks().length);
+        " to the file system", path, file.getHddsBlocks().length);
   }
 
   /**

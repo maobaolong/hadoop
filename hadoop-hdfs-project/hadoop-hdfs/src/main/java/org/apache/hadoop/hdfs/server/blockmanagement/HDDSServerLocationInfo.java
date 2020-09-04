@@ -31,6 +31,9 @@ public final class HDDSServerLocationInfo implements Writable {
 
   private BlockUnderConstructionFeature uc;
 
+  public HDDSServerLocationInfo() {
+  }
+
   private HDDSServerLocationInfo(BlockID blockID, Pipeline pipeline, long length,
       long offset) {
     this.blockID = blockID;
@@ -217,5 +220,9 @@ public final class HDDSServerLocationInfo implements Writable {
   public int hashCode() {
     return Objects.hash(blockID, length, offset, token, createVersion,
         pipeline);
+  }
+
+  public long getNumBytes() {
+    return length;
   }
 }
