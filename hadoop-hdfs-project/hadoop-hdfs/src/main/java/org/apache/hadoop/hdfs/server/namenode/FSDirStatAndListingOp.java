@@ -227,7 +227,8 @@ class FSDirStatAndListingOp {
           containerIDs.add(hddsLocationInfo.getContainerID());
         }
         Map<Long, ContainerWithPipeline> containerWithPipelineMap =
-            fsd.getFSNamesystem().refreshPipeline(containerIDs);
+            fsd.getFSNamesystem().getHDDSBlockManager()
+                .refreshPipeline(containerIDs);
         for (HDDSServerLocationInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
           ContainerWithPipeline cp =
               containerWithPipelineMap.get(hddsLocationInfo.getContainerID());
