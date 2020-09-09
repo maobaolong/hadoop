@@ -26,6 +26,10 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
+import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.client.BlockID;
+import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos;
+import org.apache.hadoop.hdfs.server.blockmanagement.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.HadoopIllegalArgumentException;
@@ -39,10 +43,6 @@ import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.BlockProto;
 import org.apache.hadoop.hdfs.protocolPB.PBHelperClient;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoStriped;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.protocol.BlockType;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.namenode.FSImageFormatProtobuf.LoaderContext;
@@ -296,7 +296,7 @@ public final class FSImageFormatPBINode {
     private INodeFile loadINodeFile(INodeSection.INode n) {
       assert n.getType() == INodeSection.INode.Type.FILE;
       INodeSection.INodeFile f = n.getFile();
-      List<BlockProto> bp = f.getBlocksList();
+      List<HdfsProtos.HDDSServerLocationInfoProto> bp = f.getHddsBlocksList();
       BlockType blockType = PBHelperClient.convert(f.getBlockType());
       LoaderContext state = parent.getLoaderContext();
       boolean isStriped = f.hasErasureCodingPolicyID();
@@ -307,18 +307,25 @@ public final class FSImageFormatPBINode {
       ErasureCodingPolicy ecPolicy = isStriped ?
           fsn.getErasureCodingPolicyManager().getByID(ecPolicyID) : null;
 
-      BlockInfo[] blocks = new BlockInfo[bp.size()];
+      //TODO(runzhiwang): open the comment
+//      BlockInfo[] blocks = new BlockInfo[bp.size()];
+//      for (int i = 0; i < bp.size(); ++i) {
+//        BlockProto b = bp.get(i);
+//        if (isStriped) {
+//          Preconditions.checkState(ecPolicy.getId() > 0,
+//              "File with ID " + n.getId() +
+//              " has an invalid erasure coding policy ID " + ecPolicy.getId());
+//          blocks[i] = new BlockInfoStriped(PBHelperClient.convert(b), ecPolicy);
+//        } else {
+//          blocks[i] = new BlockInfoContiguous(PBHelperClient.convert(b),
+//              replication);
+//        }
+//      }
+
+      HDDSServerLocationInfo[] blocks = new HDDSServerLocationInfo[bp.size()];
       for (int i = 0; i < bp.size(); ++i) {
-        BlockProto b = bp.get(i);
-        if (isStriped) {
-          Preconditions.checkState(ecPolicy.getId() > 0,
-              "File with ID " + n.getId() +
-              " has an invalid erasure coding policy ID " + ecPolicy.getId());
-          blocks[i] = new BlockInfoStriped(PBHelperClient.convert(b), ecPolicy);
-        } else {
-          blocks[i] = new BlockInfoContiguous(PBHelperClient.convert(b),
-              replication);
-        }
+        HdfsProtos.HDDSServerLocationInfoProto b = bp.get(i);
+        blocks[i] = HDDSServerLocationInfo.getFromProtobuf(b);
       }
 
       final PermissionStatus permissions = loadPermission(f.getPermission(),
@@ -346,21 +353,22 @@ public final class FSImageFormatPBINode {
         file.toUnderConstruction(uc.getClientName(), uc.getClientMachine());
         // update the lease manager
         fsn.leaseManager.addLease(uc.getClientName(), file.getId());
-        if (blocks.length > 0) {
-          BlockInfo lastBlk = file.getLastBlock();
-          // replace the last block of file
-          final BlockInfo ucBlk;
-          if (isStriped) {
-            BlockInfoStriped striped = (BlockInfoStriped) lastBlk;
-            ucBlk = new BlockInfoStriped(striped, ecPolicy);
-          } else {
-            ucBlk = new BlockInfoContiguous(lastBlk,
-                replication);
-          }
-          ucBlk.convertToBlockUnderConstruction(
-              HdfsServerConstants.BlockUCState.UNDER_CONSTRUCTION, null);
-          file.setBlock(file.numBlocks() - 1, ucBlk);
-        }
+        // TODO(runzhiwang): Open the comment
+//        if (blocks.length > 0) {
+//          BlockInfo lastBlk = file.getLastBlock();
+//          // replace the last block of file
+//          final BlockInfo ucBlk;
+//          if (isStriped) {
+//            BlockInfoStriped striped = (BlockInfoStriped) lastBlk;
+//            ucBlk = new BlockInfoStriped(striped, ecPolicy);
+//          } else {
+//            ucBlk = new BlockInfoContiguous(lastBlk,
+//                replication);
+//          }
+//          ucBlk.convertToBlockUnderConstruction(
+//              HdfsServerConstants.BlockUCState.UNDER_CONSTRUCTION, null);
+//          file.setBlock(file.numBlocks() - 1, ucBlk);
+//        }
       }
       return file;
     }
@@ -637,11 +645,11 @@ public final class FSImageFormatPBINode {
     private void save(OutputStream out, INodeFile n) throws IOException {
       INodeSection.INodeFile.Builder b = buildINodeFile(n,
           parent.getSaverContext());
-      BlockInfo[] blocks = n.getBlocks();
+      HDDSServerLocationInfo[] blocks = n.getHddsBlocks();
 
       if (blocks != null) {
-        for (Block block : n.getBlocks()) {
-          b.addBlocks(PBHelperClient.convert(block));
+        for (HDDSServerLocationInfo block : blocks) {
+          b.addHddsBlocks(block.getProtobuf());
         }
       }
 

@@ -37,6 +37,7 @@ import org.apache.hadoop.hdfs.protocol.CachePoolInfo;
 import org.apache.hadoop.hdfs.protocol.LayoutVersion;
 import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
+import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.BlockUCState;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotFSImageFormat;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotFSImageFormat.ReferenceMap;
@@ -114,6 +115,70 @@ public class FSImageSerialization {
     }
   }
 
+  private static void writeHDDSBlocks(final HDDSServerLocationInfo[] blocks,
+      final DataOutput out) throws IOException {
+    if (blocks == null) {
+      out.writeInt(0);
+    } else {
+      out.writeInt(blocks.length);
+      for (HDDSServerLocationInfo blk : blocks) {
+        blk.write(out);
+      }
+    }
+  }
+
+  // Helper function that reads in an INodeUnderConstruction
+  // from the input stream
+  //
+  static INodeFile readHDDSINodeUnderConstruction(
+      DataInput in, FSNamesystem fsNamesys, int imgVersion)
+      throws IOException {
+    byte[] name = readBytes(in);
+    long inodeId = NameNodeLayoutVersion.supports(
+        LayoutVersion.Feature.ADD_INODE_ID, imgVersion) ? in.readLong()
+        : fsNamesys.dir.allocateNewInodeId();
+    short blockReplication = in.readShort();
+    long modificationTime = in.readLong();
+    long preferredBlockSize = in.readLong();
+
+    int numBlocks = in.readInt();
+
+    final HDDSServerLocationInfo[] blocks =
+        new HDDSServerLocationInfo[numBlocks];
+
+    int i = 0;
+    for (; i < numBlocks - 1; i++) {
+      HDDSServerLocationInfo blk = new HDDSServerLocationInfo();
+      blk.readFields(in);
+      blocks[i] = blk;
+    }
+    // last block is UNDER_CONSTRUCTION
+    if(numBlocks > 0) {
+      HDDSServerLocationInfo blk = new HDDSServerLocationInfo();
+      blk.readFields(in);
+      blocks[i] = blk;
+      // TODO(runzhiwang): open comment
+//      blocksContiguous[i].convertToBlockUnderConstruction(
+//          BlockUCState.UNDER_CONSTRUCTION, null);
+    }
+
+    PermissionStatus perm = PermissionStatus.read(in);
+    String clientName = readString(in);
+    String clientMachine = readString(in);
+
+    // We previously stored locations for the last block, now we
+    // just record that there are none
+    int numLocs = in.readInt();
+    assert numLocs == 0 : "Unexpected block locations";
+
+    // Images in the pre-protobuf format will not have the lazyPersist flag,
+    // so it is safe to pass false always.
+    INodeFile file = new INodeFile(inodeId, name, perm, modificationTime,
+        modificationTime, blocks, blockReplication, preferredBlockSize);
+    file.toUnderConstruction(clientName, clientMachine);
+    return file;
+  }
+
   // Helper function that reads in an INodeUnderConstruction
   // from the input stream
   //
@@ -174,7 +239,8 @@ public class FSImageSerialization {
     out.writeLong(cons.getModificationTime());
     out.writeLong(cons.getPreferredBlockSize());
 
-    writeBlocks(cons.getBlocks(), out);
+    //writeBlocks(cons.getBlocks(), out);
+    writeHDDSBlocks(cons.getHddsBlocks(), out);
     cons.getPermissionStatus().write(out);
 
     FileUnderConstructionFeature uc = cons.getFileUnderConstructionFeature();
@@ -199,7 +265,8 @@ public class FSImageSerialization {
     out.writeLong(file.getAccessTime());
     out.writeLong(file.getPreferredBlockSize());
 
-    writeBlocks(file.getBlocks(), out);
+    //writeBlocks(file.getBlocks(), out);
+    writeHDDSBlocks(file.getHddsBlocks(), out);
     SnapshotFSImageFormat.saveFileDiffList(file, out);
 
     if (writeUnderConstruction) {

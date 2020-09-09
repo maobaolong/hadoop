@@ -261,6 +261,13 @@ public class INodeFile extends INodeWithAdditionalFields
   }
 
   INodeFile(long id, byte[] name, PermissionStatus permissions, long mtime,
+      long atime, HDDSServerLocationInfo[] blklist, short replication,
+      long preferredBlockSize) {
+    this(id, name, permissions, mtime, atime, blklist, replication, null,
+        preferredBlockSize, (byte) 0, CONTIGUOUS);
+  }
+
+  INodeFile(long id, byte[] name, PermissionStatus permissions, long mtime,
       long atime, HDDSServerLocationInfo[] blklist, Short replication, Byte ecPolicyID,
       long preferredBlockSize, byte storagePolicyID, BlockType blockType) {
     super(id, name, permissions, mtime, atime);

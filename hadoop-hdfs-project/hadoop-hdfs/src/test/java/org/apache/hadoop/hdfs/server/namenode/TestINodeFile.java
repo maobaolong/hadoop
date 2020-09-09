@@ -93,7 +93,7 @@ public class TestINodeFile {
   private long preferredBlockSize = 1024;
 
   static public INodeFile createINodeFile(long id) {
-    return new INodeFile(id, ("file" + id).getBytes(), perm, 0L, 0L, null,
+    return new INodeFile(id, ("file" + id).getBytes(), perm, 0L, 0L, (BlockInfo[]) null,
         (short)3, 1024L);
   }
 
@@ -103,7 +103,7 @@ public class TestINodeFile {
 
   INodeFile createINodeFile(short replication, long preferredBlockSize) {
     return new INodeFile(HdfsConstants.GRANDFATHER_INODE_ID, null, perm, 0L, 0L,
-        null, replication, preferredBlockSize);
+        (BlockInfo[]) null, replication, preferredBlockSize);
   }
 
   INodeFile createStripedINodeFile(long preferredBlockSize) {
@@ -377,7 +377,7 @@ public class TestINodeFile {
     preferredBlockSize = 128 * 1024 * 1024;
     INodeFile[] iNodes = new INodeFile[nCount];
     for (int i = 0; i < nCount; i++) {
-      iNodes[i] = new INodeFile(i, null, perm, 0L, 0L, null, replication,
+      iNodes[i] = new INodeFile(i, null, perm, 0L, 0L, (BlockInfo[]) null, replication,
           preferredBlockSize);
       iNodes[i].setLocalName(DFSUtil.string2Bytes(fileNamePrefix + i));
       BlockInfo newblock = new BlockInfoContiguous(replication);
@@ -435,7 +435,7 @@ public class TestINodeFile {
 
     {//cast from INodeFileUnderConstruction
       final INode from = new INodeFile(
-          HdfsConstants.GRANDFATHER_INODE_ID, null, perm, 0L, 0L, null, replication,
+          HdfsConstants.GRANDFATHER_INODE_ID, null, perm, 0L, 0L, (BlockInfo[]) null, replication,
           1024L);
       from.asFile().toUnderConstruction("client", "machine");
     
@@ -1192,7 +1192,7 @@ public class TestINodeFile {
   public void testFileUnderConstruction() {
     replication = 3;
     final INodeFile file = new INodeFile(HdfsConstants.GRANDFATHER_INODE_ID, null,
-        perm, 0L, 0L, null, replication, 1024L);
+        perm, 0L, 0L, (BlockInfo[]) null, replication, 1024L);
     assertFalse(file.isUnderConstruction());
 
     final String clientName = "client";

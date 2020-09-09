@@ -142,6 +142,7 @@ message INodeSection {
     optional uint32 storagePolicyID = 10;
     optional BlockTypeProto blockType = 11;
     optional uint32 erasureCodingPolicyID = 12;
+    repeated HDDSServerLocationInfoProto hddsBlocks = 13;
   }
 
   message QuotaByStorageTypeEntryProto {

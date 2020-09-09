@@ -54,6 +54,7 @@ import org.apache.hadoop.fs.XAttrSetFlag;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.HddsLocation;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.HDDSLocatedBlocksProto;

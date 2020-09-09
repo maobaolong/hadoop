@@ -1,10 +1,12 @@
 package org.apache.hadoop.hdfs.server.blockmanagement;
 
+import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.UnknownPipelineStateException;
 import org.apache.hadoop.hdds.security.token.OzoneBlockTokenIdentifier;
+import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.security.token.Token;
 
@@ -146,6 +148,25 @@ public final class HDDSServerLocationInfo implements Writable {
         return new HDDSServerLocationInfo(blockID, pipeline, length, offset, token);
       }
     }
+  }
+
+  public HdfsProtos.HDDSServerLocationInfoProto getProtobuf() {
+    return HdfsProtos.HDDSServerLocationInfoProto
+        .newBuilder()
+        .setContainerId(blockID.getContainerID())
+        .setLocalId(blockID.getLocalID())
+        .setLength(getLength())
+        .setOffset(getOffset())
+        .build();
+  }
+
+  public static HDDSServerLocationInfo getFromProtobuf(
+      HdfsProtos.HDDSServerLocationInfoProto locationInfoProto) {
+    return new HDDSServerLocationInfo.Builder()
+        .setBlockID(new BlockID(locationInfoProto.getContainerId(), locationInfoProto.getLocalId()))
+        .setLength(locationInfoProto.getLength())
+        .setOffset(locationInfoProto.getOffset())
+        .build();
   }
 
   private static Pipeline getPipeline(

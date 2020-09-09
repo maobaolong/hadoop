@@ -53,6 +53,7 @@ import org.apache.hadoop.hdfs.server.blockmanagement.BlockIdManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
+import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
 import org.apache.hadoop.hdfs.protocol.BlockType;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.StartupOption;
@@ -523,8 +524,12 @@ public class FSImageFormat {
       if (in.readShort() != 0) {
         throw new IOException("First node is not root");
       }
-      final INodeDirectory root = loadINode(null, false, in, counter)
-        .asDirectory();
+//      final INodeDirectory root = loadINode(null, false, in, counter)
+//        .asDirectory();
+
+      final INodeDirectory root = loadHDDSINode(null, false, in, counter)
+          .asDirectory();
+
       // update the root's attributes
       updateRootAttr(root);
     }
@@ -629,8 +634,11 @@ public class FSImageFormat {
           LOG.info("Renaming reserved path " + oldPath + " to " + newPath);
         }
       }
-      final INode newNode = loadINode(
+      final INode newNode = loadHDDSINode(
           pathComponents[pathComponents.length-1], false, in, counter);
+
+//      final INode newNode = loadINode(
+//          pathComponents[pathComponents.length-1], false, in, counter);
 
       if (isRoot(pathComponents)) { // it is the root
         // update the root's attributes
@@ -711,13 +719,173 @@ public class FSImageFormat {
       byte[] localName = FSImageSerialization.readLocalName(in);
       localName =
           renameReservedComponentOnUpgrade(localName, getLayoutVersion());
-      INode inode = loadINode(localName, isSnapshotINode, in, counter);
+//      INode inode = loadINode(localName, isSnapshotINode, in, counter);
+      INode inode = loadHDDSINode(localName, isSnapshotINode, in, counter);
       if (updateINodeMap) {
         namesystem.dir.addToInodeMap(inode);
       }
       return inode;
     }
-  
+
+  /**
+   * load an hdds inode from fsimage except for its name
+   *
+   * @param in data input stream from which image is read
+   * @param counter Counter to increment for namenode startup progress
+   * @return an inode
+   */
+  INode loadHDDSINode(final byte[] localName, boolean isSnapshotINode,
+      DataInput in, Counter counter) throws IOException {
+    final int imgVersion = getLayoutVersion();
+    if (NameNodeLayoutVersion.supports(
+        LayoutVersion.Feature.SNAPSHOT, imgVersion)) {
+      namesystem.getFSDirectory().verifyINodeName(localName);
+    }
+
+    long inodeId = NameNodeLayoutVersion.supports(
+        LayoutVersion.Feature.ADD_INODE_ID, imgVersion) ? in.readLong()
+        : namesystem.dir.allocateNewInodeId();
+
+    final short replication = namesystem.getBlockManager().adjustReplication(
+        in.readShort());
+    final long modificationTime = in.readLong();
+    long atime = 0;
+    if (NameNodeLayoutVersion.supports(
+        LayoutVersion.Feature.FILE_ACCESS_TIME, imgVersion)) {
+      atime = in.readLong();
+    }
+    final long blockSize = in.readLong();
+    final int numBlocks = in.readInt();
+
+    if (numBlocks >= 0) {
+      // file
+
+      // read blocks
+      HDDSServerLocationInfo[] blocks = new HDDSServerLocationInfo[numBlocks];
+      for (int j = 0; j < numBlocks; j++) {
+        blocks[j] = new HDDSServerLocationInfo();
+        blocks[j].readFields(in);
+      }
+
+      String clientName = "";
+      String clientMachine = "";
+      boolean underConstruction = false;
+      FileDiffList fileDiffs = null;
+      if (NameNodeLayoutVersion.supports(
+          LayoutVersion.Feature.SNAPSHOT, imgVersion)) {
+        // read diffs
+        fileDiffs = SnapshotFSImageFormat.loadFileDiffList(in, this);
+
+        if (isSnapshotINode) {
+          underConstruction = in.readBoolean();
+          if (underConstruction) {
+            clientName = FSImageSerialization.readString(in);
+            clientMachine = FSImageSerialization.readString(in);
+            // convert the last block to BlockUC
+            if (blocks.length > 0) {
+              //TODO(runzhiwang): open the comment
+//              BlockInfo lastBlk = blocks[blocks.length - 1];
+//              lastBlk.convertToBlockUnderConstruction(
+//                  HdfsServerConstants.BlockUCState.UNDER_CONSTRUCTION, null);
+            }
+          }
+        }
+      }
+
+      final PermissionStatus permissions = PermissionStatus.read(in);
+
+      // return
+      if (counter != null) {
+        counter.increment();
+      }
+
+      INodeFile file = new INodeFile(inodeId, localName, permissions,
+          modificationTime, atime, blocks,
+          replication, blockSize);
+      if (underConstruction) {
+        file.toUnderConstruction(clientName, clientMachine);
+      }
+      return fileDiffs == null ? file : new INodeFile(file, fileDiffs);
+    } else if (numBlocks == -1) {
+      //directory
+
+      //read quotas
+      final long nsQuota = in.readLong();
+      long dsQuota = -1L;
+      if (NameNodeLayoutVersion.supports(
+          LayoutVersion.Feature.DISKSPACE_QUOTA, imgVersion)) {
+        dsQuota = in.readLong();
+      }
+
+      //read snapshot info
+      boolean snapshottable = false;
+      boolean withSnapshot = false;
+      if (NameNodeLayoutVersion.supports(
+          LayoutVersion.Feature.SNAPSHOT, imgVersion)) {
+        snapshottable = in.readBoolean();
+        if (!snapshottable) {
+          withSnapshot = in.readBoolean();
+        }
+      }
+
+      final PermissionStatus permissions = PermissionStatus.read(in);
+
+      //return
+      if (counter != null) {
+        counter.increment();
+      }
+      final INodeDirectory dir = new INodeDirectory(inodeId, localName,
+          permissions, modificationTime);
+      if (nsQuota >= 0 || dsQuota >= 0) {
+        dir.addDirectoryWithQuotaFeature(new DirectoryWithQuotaFeature.Builder().
+            nameSpaceQuota(nsQuota).storageSpaceQuota(dsQuota).build());
+      }
+      if (withSnapshot) {
+        dir.addSnapshotFeature(null);
+      }
+      if (snapshottable) {
+        dir.addSnapshottableFeature();
+      }
+      return dir;
+    } else if (numBlocks == -2) {
+      //symlink
+      if (!FileSystem.areSymlinksEnabled()) {
+        throw new IOException("Symlinks not supported - please remove symlink before upgrading to this version of HDFS");
+      }
+
+      final String symlink = Text.readString(in);
+      final PermissionStatus permissions = PermissionStatus.read(in);
+      if (counter != null) {
+        counter.increment();
+      }
+      return new INodeSymlink(inodeId, localName, permissions,
+          modificationTime, atime, symlink);
+    } else if (numBlocks == -3) {
+      //reference
+      // Intentionally do not increment counter, because it is too difficult at
+      // this point to assess whether or not this is a reference that counts
+      // toward quota.
+
+      final boolean isWithName = in.readBoolean();
+      // lastSnapshotId for WithName node, dstSnapshotId for DstReference node
+      int snapshotId = in.readInt();
+
+      final INodeReference.WithCount withCount
+          = referenceMap.loadINodeReferenceWithCount(isSnapshotINode, in, this);
+
+      if (isWithName) {
+          return new INodeReference.WithName(null, withCount, localName,
+              snapshotId);
+      } else {
+        final INodeReference ref = new INodeReference.DstReference(null,
+            withCount, snapshotId);
+        return ref;
+      }
+    }
+
+    throw new IOException("Unknown inode type: numBlocks=" + numBlocks);
+  }
+
   /**
    * load an inode from fsimage except for its name
    * 
@@ -935,7 +1103,10 @@ public class FSImageFormat {
       LOG.info("Number of files under construction = " + size);
 
       for (int i = 0; i < size; i++) {
-        INodeFile cons = FSImageSerialization.readINodeUnderConstruction(in,
+//        INodeFile cons = FSImageSerialization.readINodeUnderConstruction(in,
+//            namesystem, getLayoutVersion());
+
+        INodeFile cons = FSImageSerialization.readHDDSINodeUnderConstruction(in,
             namesystem, getLayoutVersion());
         counter.increment();
 
