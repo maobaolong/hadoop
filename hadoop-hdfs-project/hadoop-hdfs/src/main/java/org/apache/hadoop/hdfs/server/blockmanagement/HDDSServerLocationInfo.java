@@ -1,6 +1,5 @@
 package org.apache.hadoop.hdfs.server.blockmanagement;
 
-import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
@@ -35,24 +34,13 @@ public final class HDDSServerLocationInfo implements Writable {
   }
 
   private HDDSServerLocationInfo(BlockID blockID, Pipeline pipeline, long length,
-      long offset) {
-    this.blockID = blockID;
-    this.pipeline = pipeline;
-    this.length = length;
-    this.offset = offset;
-  }
-
-  private HDDSServerLocationInfo(BlockID blockID, Pipeline pipeline, long length,
-      long offset, Token<OzoneBlockTokenIdentifier> token) {
+      long offset, Token<OzoneBlockTokenIdentifier> token, long createVersion) {
     this.blockID = blockID;
     this.pipeline = pipeline;
     this.length = length;
     this.offset = offset;
     this.token = token;
-  }
-
-  public void setCreateVersion(long version) {
-    createVersion = version;
+    this.createVersion = createVersion;
   }
 
   public long getCreateVersion() {
@@ -112,6 +100,7 @@ public final class HDDSServerLocationInfo implements Writable {
     private long offset;
     private Token<OzoneBlockTokenIdentifier> token;
     private Pipeline pipeline;
+    private long createVersion;
 
     public Builder setBlockID(BlockID blockId) {
       this.blockID = blockId;
@@ -139,12 +128,14 @@ public final class HDDSServerLocationInfo implements Writable {
       return this;
     }
 
+    public Builder setCreateVersion(long version) {
+      this.createVersion = version;
+      return this;
+    }
+
     public HDDSServerLocationInfo build() {
-      if (token == null) {
-        return new HDDSServerLocationInfo(blockID, pipeline, length, offset);
-      } else {
-        return new HDDSServerLocationInfo(blockID, pipeline, length, offset, token);
-      }
+      return new HDDSServerLocationInfo(blockID, pipeline, length,
+          offset, token, createVersion);
     }
   }
 
@@ -154,6 +145,7 @@ public final class HDDSServerLocationInfo implements Writable {
         .setContainerId(blockID.getContainerID())
         .setLocalId(blockID.getLocalID())
         .setLength(getLength())
+        .setCreateVersion(createVersion)
         .setOffset(getOffset())
         .build();
   }
@@ -161,9 +153,11 @@ public final class HDDSServerLocationInfo implements Writable {
   public static HDDSServerLocationInfo getFromProtobuf(
       HdfsProtos.HDDSServerLocationInfoProto locationInfoProto) {
     return new HDDSServerLocationInfo.Builder()
-        .setBlockID(new BlockID(locationInfoProto.getContainerId(), locationInfoProto.getLocalId()))
+        .setBlockID(new BlockID(locationInfoProto.getContainerId(),
+            locationInfoProto.getLocalId()))
         .setLength(locationInfoProto.getLength())
         .setOffset(locationInfoProto.getOffset())
+        .setCreateVersion(locationInfoProto.getCreateVersion())
         .build();
   }
 
