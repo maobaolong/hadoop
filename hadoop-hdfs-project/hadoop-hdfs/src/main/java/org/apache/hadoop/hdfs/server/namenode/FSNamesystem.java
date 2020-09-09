@@ -92,12 +92,8 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LI
 
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
-import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
-import org.apache.hadoop.hdds.scm.protocol.ScmBlockLocationProtocol;
-import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
-import org.apache.hadoop.hdds.scm.protocol.ScmClient;
 
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_STORAGE_POLICY_ENABLED_KEY;
 import static org.apache.hadoop.hdfs.server.namenode.FSDirStatAndListingOp.*;
@@ -140,6 +136,7 @@ import org.apache.hadoop.hdfs.protocol.SnapshotException;
 import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.protocol.ZoneReencryptionStatus;
 import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hddsblockmanager.HDDSBlockManager;
 import org.apache.hadoop.hdfs.server.namenode.metrics.ReplicatedBlocksMBean;
 import org.apache.hadoop.hdfs.server.protocol.SlowDiskReports;
 
@@ -475,6 +472,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   /** The namespace tree. */
   FSDirectory dir;
   private BlockManager blockManager;
+  private HDDSBlockManager hddsBlockManager;
   private final SnapshotManager snapshotManager;
   private final CacheManager cacheManager;
   private final DatanodeStatistics datanodeStatistics;
@@ -600,8 +598,6 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   private boolean resourceLowSafeMode = false;
   private String nameNodeHostName = null;
 
-  private final ScmClient scmClient;
-
   /**
    * Notify that loading of this FSDirectory is complete, and
    * it is imageLoaded for use
@@ -645,6 +641,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     cacheManager.clear();
     setImageLoaded(false);
     blockManager.clear();
+    hddsBlockManager.clear();
     ErasureCodingPolicyManager.getInstance().clear();
   }
 
@@ -810,15 +807,10 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
             "must not be specified if HA is not enabled.");
       }
 
-      OzoneConfiguration o3Conf = OzoneConfiguration.of(conf);
-      ScmBlockLocationProtocol scmBlockClient =
-          ScmClient.getScmBlockClient(o3Conf);
-      StorageContainerLocationProtocol scmContainerClient =
-          ScmClient.getScmContainerClient(o3Conf);
-      this.scmClient = new ScmClient(scmBlockClient, scmContainerClient);
-
       // block manager needs the haEnabled initialized
       this.blockManager = new BlockManager(this, haEnabled, conf);
+      this.hddsBlockManager = new HDDSBlockManager(this, haEnabled, conf);
+
       this.datanodeStatistics = blockManager.getDatanodeManager().getDatanodeStatistics();
 
       // Get the checksum type from config
@@ -949,13 +941,6 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       close();
       throw re;
     }
-  }
-
-  /**
-   * Return scmClient.
-   */
-  public ScmClient getScmClient() {
-    return scmClient;
   }
 
   @VisibleForTesting
@@ -5072,13 +5057,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
 
   @Override  //NameNodeMXBean
   public String getScmId() {
-    try {
-      return scmClient != null && scmClient.getContainerClient() != null ?
-          scmClient.getContainerClient().getScmInfo().getScmId() :
-          "N/A";
-    } catch (IOException e) {
-      return "N/A";
-    }
+    return getHDDSBlockManager().getBlockPoolId();
   }
 
   // HA-only metric
@@ -6345,6 +6324,10 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   /** @return the block manager. */
   public BlockManager getBlockManager() {
     return blockManager;
+  }
+
+  public HDDSBlockManager getHDDSBlockManager() {
+    return hddsBlockManager;
   }
 
   @VisibleForTesting
@@ -8310,7 +8293,6 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
 
   HDDSFileStatus getHDDSFileInfo(final String src, boolean resolveLink,
       boolean needLocation, boolean needBlockToken) throws IOException {
-    // TODO(baoloongmao): get the blockID and related information from InodeFile
     final String operationName = needBlockToken ? "openV2" : "getfileinfoV2";
     checkOperation(OperationCategory.READ);
     final FSPermissionChecker pc = getPermissionChecker();
@@ -8318,32 +8300,6 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     logAuditEvent(true, operationName, src);
     return fileStatus;
 
-  }
-
-  protected Map<Long, ContainerWithPipeline> refreshPipeline(
-      Set<Long> containerIDs) throws IOException {
-    // TODO: fix Some tests that may not initialize container client
-    // The production should always have containerClient initialized.
-    if (scmClient.getContainerClient() == null ||
-        containerIDs == null || containerIDs.isEmpty()) {
-      return Collections.EMPTY_MAP;
-    }
-
-    Map<Long, ContainerWithPipeline> containerWithPipelineMap = new HashMap<>();
-
-    try {
-      List<ContainerWithPipeline> cpList = scmClient.getContainerClient().
-          getContainerWithPipelineBatch(new ArrayList<>(containerIDs));
-      for (ContainerWithPipeline cp : cpList) {
-        containerWithPipelineMap.put(
-            cp.getContainerInfo().getContainerID(), cp);
-      }
-      return containerWithPipelineMap;
-    } catch (IOException ioEx) {
-      LOG.debug("Get containerPipeline failed for {}",
-          containerIDs.toString(), ioEx);
-      throw new IOException("SCM_GET_PIPELINE_EXCEPTION", ioEx);
-    }
   }
 
   /**

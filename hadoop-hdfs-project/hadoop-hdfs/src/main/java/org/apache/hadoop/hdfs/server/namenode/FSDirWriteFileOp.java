@@ -77,7 +77,7 @@ import java.util.Set;
 import static org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot.CURRENT_STATE_ID;
 import static org.apache.hadoop.util.Time.now;
 
-class FSDirWriteFileOp {
+public class FSDirWriteFileOp {
   private FSDirWriteFileOp() {}
   static boolean unprotectedRemoveBlock(
       FSDirectory fsd, String path, INodesInPath iip, INodeFile fileNode,
@@ -294,9 +294,7 @@ class FSDirWriteFileOp {
         .setToken(allocatedBlock.getToken())
         .build();
     fileINode.addHDDSBlock(info);
-    //    persistNewBlock(fsn, src, pendingFile);
     return allocatedBlock;
-    // TODO(baoloongmao): logAllocatedBlock and persistNewBlock
   }
 
   static DatanodeStorageInfo[] chooseTargetForNewBlock(
@@ -444,7 +442,6 @@ class FSDirWriteFileOp {
           XAttrSetFlag.CREATE);
     }
     setNewINodeStoragePolicy(fsd.getBlockManager(), iip, isLazyPersist);
-    // TODO(baoloongmao): log edit later
     fsd.getEditLog().logOpenFile(src, newNode, overwrite, logRetryEntry);
     if (NameNode.stateChangeLog.isDebugEnabled()) {
       NameNode.stateChangeLog.debug("DIR* NameSystem.startFile: added " +
@@ -996,33 +993,8 @@ class FSDirWriteFileOp {
       FSNamesystem fs,
       ExcludeList excludeList,
       FSDirWriteFileOp.ValidateAddBlockResult r) throws IOException {
-    List<HDDSLocationInfo> locationInfos = new ArrayList<>(1);
-    List<AllocatedBlock> allocatedBlocks;
-    try {
-      // TODO(baoloongmao): check replication should be 1 or 3 now.
-      allocatedBlocks = fs.getScmClient().getBlockClient()
-          .allocateBlock(r.blockSize, 1,
-              HddsProtos.ReplicationType.RATIS,
-              HddsProtos.ReplicationFactor.valueOf(r.numTargets),
-              fs.getNamespaceInfo().getClusterID(),
-              excludeList);
-    } catch (SCMException ex) {
-      if (ex.getResult()
-          .equals(SCMException.ResultCodes.SAFE_MODE_EXCEPTION)) {
-        throw new IOException("SCM_IN_SAFE_MODE", ex);
-      }
-      throw ex;
-    }
-    for (AllocatedBlock allocatedBlock : allocatedBlocks) {
-      HDDSLocationInfo.Builder builder = new HDDSLocationInfo.Builder()
-          .setBlockID(new BlockID(allocatedBlock.getBlockID()))
-          .setLength(r.blockSize)
-          .setOffset(0)
-          .setPipeline(allocatedBlock.getPipeline());
-      // TODO(baoloongmao): add block Token later
-      locationInfos.add(builder.build());
-    }
-    return locationInfos;
+    return fs.getHDDSBlockManager().getHDDSBlockFromSCM(
+        excludeList, r.blockSize, r.numTargets);
   }
 
   static boolean unprotectedRemoveHDDSBlock(
