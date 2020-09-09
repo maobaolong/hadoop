@@ -567,7 +567,7 @@ public class FSEditLogLoader {
       String path = renameReservedPathsOnUpgrade(addBlockOp.getPath(), logVersion);
       if (FSNamesystem.LOG.isDebugEnabled()) {
         FSNamesystem.LOG.debug(op.opCode + ": " + path +
-            " new block id : " + addBlockOp.getLastBlock().getBlockId());
+            " new block id : " + addBlockOp.getLastBlock().getBlockID());
       }
       INodesInPath iip = fsDir.getINodesInPath(path, DirOp.READ);
       INodeFile oldFile = INodeFile.valueOf(iip.getLastINode(), path);
@@ -1075,44 +1075,44 @@ public class FSEditLogLoader {
    */
   private void addNewBlock(AddBlockOp op, INodeFile file,
       ErasureCodingPolicy ecPolicy) throws IOException {
-    BlockInfo[] oldBlocks = file.getBlocks();
-    Block pBlock = op.getPenultimateBlock();
-    Block newBlock= op.getLastBlock();
+    HDDSServerLocationInfo[] oldBlocks = file.getHddsBlocks();
+    HDDSServerLocationInfo pBlock = op.getPenultimateBlock();
+    HDDSServerLocationInfo newBlock= op.getLastBlock();
     
     if (pBlock != null) { // the penultimate block is not null
       assert oldBlocks != null && oldBlocks.length > 0;
       // compare pBlock with the last block of oldBlocks
-      BlockInfo oldLastBlock = oldBlocks[oldBlocks.length - 1];
-      if (oldLastBlock.getBlockId() != pBlock.getBlockId()
-          || oldLastBlock.getGenerationStamp() != pBlock.getGenerationStamp()) {
-        throw new IOException(
-            "Mismatched block IDs or generation stamps for the old last block of file "
-                + op.getPath() + ", the old last block is " + oldLastBlock
-                + ", and the block read from editlog is " + pBlock);
-      }
+      HDDSServerLocationInfo oldLastBlock = oldBlocks[oldBlocks.length - 1];
+//      if (oldLastBlock.getBlockId() != pBlock.getBlockId()
+//          || oldLastBlock.getGenerationStamp() != pBlock.getGenerationStamp()) {
+//        throw new IOException(
+//            "Mismatched block IDs or generation stamps for the old last block of file "
+//                + op.getPath() + ", the old last block is " + oldLastBlock
+//                + ", and the block read from editlog is " + pBlock);
+//      }
       
-      oldLastBlock.setNumBytes(pBlock.getNumBytes());
-      if (!oldLastBlock.isComplete()) {
-        fsNamesys.getBlockManager().forceCompleteBlock(oldLastBlock);
-        fsNamesys.getBlockManager().processQueuedMessagesForBlock(pBlock);
-      }
+      oldLastBlock.setLength(pBlock.getLength());
+//      if (!oldLastBlock.isComplete()) {
+//        fsNamesys.getBlockManager().forceCompleteBlock(oldLastBlock);
+//        fsNamesys.getBlockManager().processQueuedMessagesForBlock(pBlock);
+//      }
     } else { // the penultimate block is null
       Preconditions.checkState(oldBlocks == null || oldBlocks.length == 0);
     }
     // add the new block
-    final BlockInfo newBlockInfo;
-    boolean isStriped = ecPolicy != null;
-    if (isStriped) {
-      newBlockInfo = new BlockInfoStriped(newBlock, ecPolicy);
-    } else {
-      newBlockInfo = new BlockInfoContiguous(newBlock,
-          file.getPreferredBlockReplication());
-    }
-    newBlockInfo.convertToBlockUnderConstruction(
-        BlockUCState.UNDER_CONSTRUCTION, null);
-    fsNamesys.getBlockManager().addBlockCollectionWithCheck(newBlockInfo, file);
-    file.addBlock(newBlockInfo);
-    fsNamesys.getBlockManager().processQueuedMessagesForBlock(newBlock);
+//    final BlockInfo newBlockInfo;
+//    boolean isStriped = ecPolicy != null;
+//    if (isStriped) {
+//      newBlockInfo = new BlockInfoStriped(newBlock, ecPolicy);
+//    } else {
+//      newBlockInfo = new BlockInfoContiguous(newBlock,
+//          file.getPreferredBlockReplication());
+//    }
+//    newBlockInfo.convertToBlockUnderConstruction(
+//        BlockUCState.UNDER_CONSTRUCTION, null);
+//    fsNamesys.getBlockManager().addBlockCollectionWithCheck(newBlockInfo, file);
+    file.addHDDSBlock(newBlock);
+//    fsNamesys.getBlockManager().processQueuedMessagesForBlock(newBlock);
   }
   
   /**
