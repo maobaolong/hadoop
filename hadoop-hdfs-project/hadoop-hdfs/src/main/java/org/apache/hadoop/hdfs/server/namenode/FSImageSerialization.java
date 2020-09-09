@@ -29,6 +29,7 @@ import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
+import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.DeprecatedUTF8;
 import org.apache.hadoop.hdfs.protocol.Block;
@@ -565,7 +566,24 @@ public class FSImageSerialization {
       prev = b;
     }
   }
-  
+
+  public static void writeCompactHddsBlockArray(
+      HDDSServerLocationInfo[] blocks, DataOutputStream out) throws IOException {
+    WritableUtils.writeVInt(out, blocks.length);
+    HDDSServerLocationInfo prev = null;
+    for (HDDSServerLocationInfo b : blocks) {
+      out.writeLong(b.getContainerID());
+      out.writeLong(b.getLocalID());
+      long szDelta = b.getNumBytes() -
+          (prev != null ? prev.getNumBytes() : 0);
+      WritableUtils.writeVLong(out, szDelta);
+      long offsetDelta = b.getOffset() -
+          (prev != null ? prev.getOffset() : 0);
+      WritableUtils.writeVLong(out, offsetDelta);
+      prev = b;
+    }
+  }
+
   public static Block[] readCompactBlockArray(
       DataInput in, int logVersion) throws IOException {
     int num = WritableUtils.readVInt(in);
@@ -581,6 +599,31 @@ public class FSImageSerialization {
       long gs = WritableUtils.readVLong(in) +
           ((prev != null) ? prev.getGenerationStamp() : 0);
       ret[i] = new Block(id, sz, gs);
+      prev = ret[i];
+    }
+    return ret;
+  }
+
+  public static HDDSServerLocationInfo[] readCompactHddsBlockArray(
+      DataInput in, int logVersion) throws IOException {
+    int num = WritableUtils.readVInt(in);
+    if (num < 0) {
+      throw new IOException("Invalid block array length: " + num);
+    }
+    HDDSServerLocationInfo prev = null;
+    HDDSServerLocationInfo[] ret = new HDDSServerLocationInfo[num];
+    for (int i = 0; i < num; i++) {
+      long containerId = in.readLong();
+      long localId = in.readLong();
+      long length = WritableUtils.readVLong(in) +
+          ((prev != null) ? prev.getNumBytes() : 0);
+      long offset = WritableUtils.readVLong(in) +
+          ((prev != null) ? prev.getOffset() : 0);
+      ret[i] = new HDDSServerLocationInfo.Builder()
+          .setBlockID(new BlockID(containerId, localId))
+          .setLength(length)
+          .setOffset(offset)
+          .build();
       prev = ret[i];
     }
     return ret;

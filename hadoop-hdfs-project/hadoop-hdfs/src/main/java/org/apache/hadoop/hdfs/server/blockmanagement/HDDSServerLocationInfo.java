@@ -31,8 +31,6 @@ public final class HDDSServerLocationInfo implements Writable {
 
   private Pipeline pipeline;
 
-  private BlockUnderConstructionFeature uc;
-
   public HDDSServerLocationInfo() {
   }
 
