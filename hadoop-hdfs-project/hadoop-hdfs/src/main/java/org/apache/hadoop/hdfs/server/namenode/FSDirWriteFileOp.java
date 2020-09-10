@@ -294,6 +294,7 @@ public class FSDirWriteFileOp {
         .setToken(allocatedBlock.getToken())
         .build();
     fileINode.addHDDSBlock(info);
+    persistNewBlock(fsn, src, pendingFile);
     return allocatedBlock;
   }
 

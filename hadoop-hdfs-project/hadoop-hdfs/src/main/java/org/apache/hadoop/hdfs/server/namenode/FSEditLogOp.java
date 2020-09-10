@@ -953,8 +953,8 @@ public abstract class FSEditLogOp {
   
   static class AddBlockOp extends FSEditLogOp {
     private String path;
-    private Block penultimateBlock;
-    private Block lastBlock;
+    private HDDSServerLocationInfo penultimateBlock;
+    private HDDSServerLocationInfo lastBlock;
     
     AddBlockOp() {
       super(OP_ADD_BLOCK);
@@ -980,21 +980,21 @@ public abstract class FSEditLogOp {
       return path;
     }
 
-    AddBlockOp setPenultimateBlock(Block pBlock) {
+    AddBlockOp setPenultimateBlock(HDDSServerLocationInfo pBlock) {
       this.penultimateBlock = pBlock;
       return this;
     }
-    
-    Block getPenultimateBlock() {
+
+    HDDSServerLocationInfo getPenultimateBlock() {
       return penultimateBlock;
     }
     
-    AddBlockOp setLastBlock(Block lastBlock) {
+    AddBlockOp setLastBlock(HDDSServerLocationInfo lastBlock) {
       this.lastBlock = lastBlock;
       return this;
     }
-    
-    Block getLastBlock() {
+
+    HDDSServerLocationInfo getLastBlock() {
       return lastBlock;
     }
 
@@ -1002,12 +1002,12 @@ public abstract class FSEditLogOp {
     public void writeFields(DataOutputStream out) throws IOException {
       FSImageSerialization.writeString(path, out);
       int size = penultimateBlock != null ? 2 : 1;
-      Block[] blocks = new Block[size];
+      HDDSServerLocationInfo[] blocks = new HDDSServerLocationInfo[size];
       if (penultimateBlock != null) {
         blocks[0] = penultimateBlock;
       }
       blocks[size - 1] = lastBlock;
-      FSImageSerialization.writeCompactBlockArray(blocks, out);
+      FSImageSerialization.writeCompactHddsBlockArray(blocks, out);
       // clientId and callId
       writeRpcIds(rpcClientId, rpcCallId, out);
     }
@@ -1015,8 +1015,8 @@ public abstract class FSEditLogOp {
     @Override
     void readFields(DataInputStream in, int logVersion) throws IOException {
       path = FSImageSerialization.readString(in);
-      Block[] blocks = FSImageSerialization.readCompactBlockArray(in,
-          logVersion);
+      HDDSServerLocationInfo[] blocks =
+          FSImageSerialization.readCompactHddsBlockArray(in, logVersion);
       Preconditions.checkState(blocks.length == 2 || blocks.length == 1);
       penultimateBlock = blocks.length == 1 ? null : blocks[0];
       lastBlock = blocks[blocks.length - 1];
@@ -1040,10 +1040,11 @@ public abstract class FSEditLogOp {
     @Override
     protected void toXml(ContentHandler contentHandler) throws SAXException {
       XMLUtils.addSaxString(contentHandler, "PATH", path);
-      if (penultimateBlock != null) {
-        FSEditLogOp.blockToXml(contentHandler, penultimateBlock);
-      }
-      FSEditLogOp.blockToXml(contentHandler, lastBlock);
+      // TODO(baoloongmao): fix the xml
+//      if (penultimateBlock != null) {
+//        FSEditLogOp.blockToXml(contentHandler, penultimateBlock);
+//      }
+//      FSEditLogOp.blockToXml(contentHandler, lastBlock);
       appendRpcIdsToXml(contentHandler, rpcClientId, rpcCallId);
     }
     
@@ -1053,9 +1054,10 @@ public abstract class FSEditLogOp {
       List<Stanza> blocks = st.getChildren("BLOCK");
       int size = blocks.size();
       Preconditions.checkState(size == 1 || size == 2);
-      this.penultimateBlock = size == 2 ? 
-          FSEditLogOp.blockFromXml(blocks.get(0)) : null;
-      this.lastBlock = FSEditLogOp.blockFromXml(blocks.get(size - 1));
+      // TODO(baoloongmao): fix the from/to xml
+//      this.penultimateBlock = size == 2 ?
+//          FSEditLogOp.blockFromXml(blocks.get(0)) : null;
+//      this.lastBlock = FSEditLogOp.blockFromXml(blocks.get(size - 1));
       readRpcIdsFromXml(st);
     }
   }
