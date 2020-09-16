@@ -3577,7 +3577,9 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
 //    Preconditions.checkArgument(fileINode.isUnderConstruction());
 //    blockManager.commitOrCompleteLastBlock(fileINode, commitBlock, iip);
     HDDSServerLocationInfo lastBlock = fileINode.getLastHDDSBlock();
-    lastBlock.setLength(commitBlock.getLength());
+    if (lastBlock != null && commitBlock != null) {
+      lastBlock.setLength(commitBlock.getLength());
+    }
   }
 
   void addCommittedBlocksToPending(final INodeFile pendingFile) {

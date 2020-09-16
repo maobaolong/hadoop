@@ -113,7 +113,7 @@ public class HDDSInputStream extends FSInputStream implements Seekable {
             HDDSFileStatus newKeyInfo = retryFunction.apply(src);
             BlockID blockID = keyLocationInfo.getBlockID();
             List<HDDSLocationInfo> collect =
-                newKeyInfo.getLocatedBlocks().getLocatedBlocks()
+                newKeyInfo.getHDDSLocatedBlocks().getLocatedBlocks()
                 .stream()
                 .filter(l -> l.getBlockID().equals(blockID))
                 .collect(Collectors.toList());

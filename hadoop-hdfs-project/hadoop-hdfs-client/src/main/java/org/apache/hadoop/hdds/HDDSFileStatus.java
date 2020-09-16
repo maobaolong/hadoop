@@ -1,20 +1,23 @@
 package org.apache.hadoop.hdds;
 
 import org.apache.hadoop.fs.FileEncryptionInfo;
+import org.apache.hadoop.fs.LocatedFileStatus;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdfs.DFSUtilClient;
 import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
-import org.apache.hadoop.hdfs.protocol.HdfsNamedFileStatus;
+import org.apache.hadoop.hdfs.protocol.HdfsLocatedFileStatus;
 
+import java.net.URI;
 import java.util.EnumSet;
-import java.util.Set;
 
-public class HDDSFileStatus extends HdfsNamedFileStatus {
+public class HDDSFileStatus extends HdfsLocatedFileStatus {
   HDDSLocatedBlocks locatedBlocks;
 
   public HDDSFileStatus(long length, boolean isdir, int replication,
                         long blocksize, long mtime, long atime,
-                        FsPermission permission, Set<Flags> flags,
+                        FsPermission permission, EnumSet<Flags> flags,
                         String owner, String group,
                         byte[] symlink, byte[] path, long fileId,
                         int childrenNum, FileEncryptionInfo feInfo,
@@ -23,7 +26,7 @@ public class HDDSFileStatus extends HdfsNamedFileStatus {
     super(length, isdir, replication, blocksize, mtime, atime,
         permission, flags,
         owner, group, symlink, path, fileId,
-        childrenNum, feInfo, storagePolicy, ecPolicy);
+        childrenNum, feInfo, storagePolicy, ecPolicy, null);
     this.locatedBlocks = locatedBlocks;
   }
 
@@ -42,7 +45,14 @@ public class HDDSFileStatus extends HdfsNamedFileStatus {
     return hddsFileStatus;
   }
 
-  public HDDSLocatedBlocks getLocatedBlocks() {
+  public HDDSLocatedBlocks getHDDSLocatedBlocks() {
     return locatedBlocks;
+  }
+
+  public LocatedFileStatus makeQualifiedLocated(URI defaultUri, Path path) {
+    makeQualified(defaultUri, path);
+    setBlockLocations(
+        DFSUtilClient.hddsLocation2Locations(getHDDSLocatedBlocks()));
+    return this;
   }
 }

@@ -274,7 +274,7 @@ public class HDDSClient extends DFSClient {
     try (TraceScope ignored = newPathTraceScope("newDFSInputStream", src)) {
       HDDSFileStatus s = getHDDSLocatedFileInfo(src, true);
 //      fd.verify(s); // check invariants in path handle
-      HDDSLocatedBlocks locatedBlocks = s.getLocatedBlocks();
+      HDDSLocatedBlocks locatedBlocks = s.getHDDSLocatedBlocks();
       return HDDSInputStream.getFromSrc(src, locatedBlocks, xceiverClientManager, verifyChecksum, str -> {
         try {
           return getHDDSLocatedFileInfo(str, true);
@@ -291,6 +291,18 @@ public class HDDSClient extends DFSClient {
     checkOpen();
     try (TraceScope ignored = newPathTraceScope("getLocatedFileInfo", src)) {
       return getNamenode().getHDDSLocatedFileInfo(src, needBlockToken);
+    } catch (RemoteException re) {
+      throw re.unwrapRemoteException(AccessControlException.class,
+          FileNotFoundException.class,
+          UnresolvedPathException.class);
+    }
+  }
+
+  public DirectoryListing listPaths(String src,  byte[] startAfter,
+      boolean needLocation) throws IOException {
+    checkOpen();
+    try (TraceScope ignored = newPathTraceScope("listPaths", src)) {
+      return getNamenode().getHDDSListing(src, startAfter, needLocation);
     } catch (RemoteException re) {
       throw re.unwrapRemoteException(AccessControlException.class,
           FileNotFoundException.class,

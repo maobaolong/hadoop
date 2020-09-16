@@ -36,6 +36,7 @@ import org.apache.hadoop.ha.proto.HAServiceProtocolProtos.HAServiceStateProto;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.GetHDDSListingResponseProto;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.AddBlockFlag;
 import org.apache.hadoop.fs.ContentSummary;
@@ -427,6 +428,9 @@ public class ClientNamenodeProtocolServerSideTranslatorPB implements
   private static final ClientNamenodeSCMProtocolProtos.GetHDDSLocatedFileInfoResponseProto
       VOID_GETHDDSLOCATEDFILEINFO_RESPONSE =
       ClientNamenodeSCMProtocolProtos.GetHDDSLocatedFileInfoResponseProto.newBuilder().build();
+
+  private static final GetHDDSListingResponseProto VOID_GETHDDSLISTING_RESPONSE =
+      GetHDDSListingResponseProto.newBuilder().build();
 
   /**
    * Constructor
@@ -2013,6 +2017,24 @@ public class ClientNamenodeProtocolServerSideTranslatorPB implements
               req.hasFileId() ? req.getFileId() : HdfsConstants.GRANDFATHER_INODE_ID);
       return ClientNamenodeSCMProtocolProtos.
           CompleteHDDSFileResponseProto.newBuilder().setResult(result).build();
+    } catch (IOException e) {
+      throw new ServiceException(e);
+    }
+  }
+
+  @Override
+  public GetHDDSListingResponseProto getHDDSListing(RpcController controller,
+      GetListingRequestProto req) throws ServiceException {
+    try {
+      DirectoryListing result = server.getListing(
+          req.getSrc(), req.getStartAfter().toByteArray(),
+          req.getNeedLocation());
+      if (result !=null) {
+        return GetHDDSListingResponseProto.newBuilder().setDirList(
+            PBHelperClient.convertToHDDS(result)).build();
+      } else {
+        return VOID_GETHDDSLISTING_RESPONSE;
+      }
     } catch (IOException e) {
       throw new ServiceException(e);
     }

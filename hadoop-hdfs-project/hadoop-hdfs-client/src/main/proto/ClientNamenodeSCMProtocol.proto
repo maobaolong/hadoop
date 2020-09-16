@@ -138,3 +138,15 @@ message CompleteHDDSFileRequestProto {
 message CompleteHDDSFileResponseProto {
     required bool result = 1;
 }
+
+/**
+ * Directory listing
+ */
+message HDDSDirectoryListingProto {
+    repeated HDDSFileStatusProto partialListing = 1;
+    required uint32 remainingEntries  = 2;
+}
+
+message GetHDDSListingResponseProto {
+    optional HDDSDirectoryListingProto dirList = 1;
+}
