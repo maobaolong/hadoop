@@ -14,6 +14,7 @@ import org.apache.hadoop.hdds.scm.protocol.ScmClient;
 import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
+import org.apache.hadoop.ozone.common.BlockGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -113,6 +114,23 @@ public class HDDSBlockManager {
       locationInfos.add(builder.build());
     }
     return locationInfos;
+  }
+
+  /**
+   * From the given list, remove the blocks use Ozone SCM
+   *
+   * @param blocksList
+   *          An instance of {@link List< BlockGroup >} which contains a list
+   *          of blocks that need to be removed
+   */
+  public void removeBlocks(List<BlockGroup> blocksList) {
+    try {
+      if (blocksList != null && !blocksList.isEmpty()) {
+        scmClient.getBlockClient().deleteKeyBlocks(blocksList);
+      }
+    } catch (IOException e) {
+      LOG.error("Error while deleting key blocks.", e);
+    }
   }
 
   public void clear() {

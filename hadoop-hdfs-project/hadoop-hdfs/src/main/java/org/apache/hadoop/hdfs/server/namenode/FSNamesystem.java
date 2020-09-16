@@ -3094,6 +3094,8 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     try {
       checkOperation(OperationCategory.WRITE);
       checkNameNodeSafeMode("Cannot delete " + src);
+      // TODO(micahzhao): Here we need to add hddsDelete in FSDirDeleteOp,
+      //  and return List<BlockGroup>.
       toRemovedBlocks = FSDirDeleteOp.delete(
           this, pc, src, recursive, logRetryCache);
       ret = toRemovedBlocks != null;
@@ -3105,6 +3107,9 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     }
     getEditLog().logSync();
     if (toRemovedBlocks != null) {
+      // TODO(micahzhao): Here we need to call
+      //  removeBlocks(List<BlockGroup> blocksList).
+      //  Remove blocks through SCM.
       removeBlocks(toRemovedBlocks); // Incremental deletion of blocks
     }
     logAuditEvent(true, operationName, src);
