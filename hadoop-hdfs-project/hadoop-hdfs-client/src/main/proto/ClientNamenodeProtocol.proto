@@ -1048,4 +1048,5 @@ service ClientNamenodeProtocol {
   rpc allocateBlock(AllocateBlockRequest) returns(AllocateBlockResponse);
   rpc getHDDSLocatedFileInfo(GetLocatedFileInfoRequestProto) returns(GetHDDSLocatedFileInfoResponseProto);
   rpc completeHDDSFile(CompleteHDDSFileRequestProto) returns(CompleteHDDSFileResponseProto);
+  rpc getHDDSListing(GetListingRequestProto) returns(GetHDDSListingResponseProto);
 }

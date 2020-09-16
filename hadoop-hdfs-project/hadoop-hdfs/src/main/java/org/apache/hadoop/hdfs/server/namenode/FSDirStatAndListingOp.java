@@ -247,13 +247,16 @@ class FSDirStatAndListingOp {
         }
 
         HDDSServerLocationInfo last = fileNode.getLastHDDSBlock();
-        HDDSLocationInfo locationInfo = new HDDSLocationInfo.Builder()
-            .setBlockID(last.getBlockID())
-            .setPipeline(last.getPipeline())
-            .setLength(last.getLength())
-            .setOffset(last.getOffset())
-            .setToken(last.getToken())
-            .build();
+        HDDSLocationInfo locationInfo = null;
+        if (last != null) {
+          locationInfo = new HDDSLocationInfo.Builder()
+              .setBlockID(last.getBlockID())
+              .setPipeline(last.getPipeline())
+              .setLength(last.getLength())
+              .setOffset(last.getOffset())
+              .setToken(last.getToken())
+              .build();
+        }
         locatedBlocks = new HDDSLocatedBlocks(
             fileSize, false, blks, locationInfo, true, null, null);
       }
@@ -425,7 +428,7 @@ class FSDirStatAndListingOp {
         // return the file's status. note that the iip already includes the
         // target INode
         return new DirectoryListing(
-            new HdfsFileStatus[]{ createFileStatus(
+            new HdfsFileStatus[]{ createHDDSFileStatus(
                 fsd, iip, null, parentStoragePolicy, needLocation, false)
             }, 0);
       }
@@ -445,7 +448,7 @@ class FSDirStatAndListingOp {
             ? getStoragePolicyID(child.getLocalStoragePolicyID(),
                                  parentStoragePolicy)
             : parentStoragePolicy;
-        listing[i] = createFileStatus(fsd, iip, child, childStoragePolicy,
+        listing[i] = createHDDSFileStatus(fsd, iip, child, childStoragePolicy,
             needLocation, false);
         listingCnt++;
         if (listing[i] instanceof HdfsLocatedFileStatus) {
@@ -456,6 +459,11 @@ class FSDirStatAndListingOp {
                 ((HdfsLocatedFileStatus)listing[i]).getLocatedBlocks();
             locationBudget -= (blks == null) ? 0 :
                blks.locatedBlockCount() * listing[i].getReplication();
+        } else if (listing[i] instanceof HDDSFileStatus) {
+          HDDSLocatedBlocks blks =
+              ((HDDSFileStatus) listing[i]).getHDDSLocatedBlocks();
+          locationBudget -= (blks == null) ? 0 :
+              blks.locatedBlockCount() * listing[i].getReplication();
         }
       }
       // truncate return array if necessary

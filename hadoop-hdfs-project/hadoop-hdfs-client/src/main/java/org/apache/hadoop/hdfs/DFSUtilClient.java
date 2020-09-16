@@ -28,6 +28,9 @@ import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
+import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdfs.client.HdfsClientConfigKeys;
 import org.apache.hadoop.hdfs.net.BasicInetPeer;
 import org.apache.hadoop.hdfs.net.NioInetPeer;
@@ -309,6 +312,50 @@ public class DFSUtilClient {
                                             blk.getStartOffset(),
                                             blk.getBlockSize(),
                                             blk.isCorrupt());
+      idx++;
+    }
+    return blkLocations;
+  }
+
+  public static BlockLocation[] hddsLocation2Locations(HDDSLocatedBlocks blocks) {
+    if (blocks == null) {
+      return new BlockLocation[0];
+    }
+    return hddsLocation2Locations(blocks.getLocatedBlocks());
+  }
+
+
+  public static BlockLocation[] hddsLocation2Locations(
+      List<HDDSLocationInfo> blocks) {
+    if (blocks == null) {
+      return new BlockLocation[0];
+    }
+    int nrBlocks = blocks.size();
+    BlockLocation[] blkLocations = new BlockLocation[nrBlocks];
+    if (nrBlocks == 0) {
+      return blkLocations;
+    }
+    int idx = 0;
+    for (HDDSLocationInfo blk : blocks) {
+      assert idx < nrBlocks : "Incorrect index";
+      List<DatanodeDetails> locations = blk.getPipeline().getNodes();
+      String[] hosts = new String[locations.size()];
+      String[] xferAddrs = new String[locations.size()];
+      String[] racks = new String[locations.size()];
+      for (int hCnt = 0; hCnt < locations.size(); hCnt++) {
+        hosts[hCnt] = locations.get(hCnt).getHostName();
+        xferAddrs[hCnt] = locations.get(hCnt).getHostName();
+        NodeBase node = new NodeBase(xferAddrs[hCnt],
+            locations.get(hCnt).getNetworkLocation());
+        racks[hCnt] = node.toString();
+      }
+      blkLocations[idx] = new BlockLocation(xferAddrs, hosts, null,
+          racks,
+          null,
+          null,
+          blk.getOffset(),
+          blk.getLength(),
+          false);
       idx++;
     }
     return blkLocations;

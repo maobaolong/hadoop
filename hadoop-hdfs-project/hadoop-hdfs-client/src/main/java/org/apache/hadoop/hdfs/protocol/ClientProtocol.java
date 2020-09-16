@@ -1845,4 +1845,11 @@ public interface ClientProtocol {
       throws IOException {
     return null;
   }
+
+  @Idempotent
+  @ReadOnly(isCoordinated = true)
+  default DirectoryListing getHDDSListing(String src, byte[] startAfter,
+      boolean needLocation) throws IOException {
+    return null;
+  }
 }

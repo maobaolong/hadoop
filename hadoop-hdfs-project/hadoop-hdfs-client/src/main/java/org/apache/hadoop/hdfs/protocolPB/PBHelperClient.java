@@ -54,8 +54,8 @@ import org.apache.hadoop.fs.XAttrSetFlag;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
-import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.HDDSDirectoryListingProto;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.HddsLocation;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.HDDSLocatedBlocksProto;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.HDDSFileStatusProto;
@@ -2403,12 +2403,32 @@ public class PBHelperClient {
     return result;
   }
 
+  public static HDDSFileStatusProto[] convertToHDDS(HdfsFileStatus[] fs) {
+    if (fs == null) return null;
+    final int len = fs.length;
+    HDDSFileStatusProto[] result = new HDDSFileStatusProto[len];
+    for (int i = 0; i < len; ++i) {
+      result[i] = convert((HDDSFileStatus) fs[i]);
+    }
+    return result;
+  }
+
   public static DirectoryListingProto convert(DirectoryListing d) {
     if (d == null)
       return null;
     return DirectoryListingProto.newBuilder().
         addAllPartialListing(Arrays.asList(
             convert(d.getPartialListing()))).
+        setRemainingEntries(d.getRemainingEntries()).
+        build();
+  }
+
+  public static HDDSDirectoryListingProto convertToHDDS(DirectoryListing d) {
+    if (d == null)
+      return null;
+    return HDDSDirectoryListingProto.newBuilder().
+        addAllPartialListing(Arrays.asList(
+            convertToHDDS(d.getPartialListing()))).
         setRemainingEntries(d.getRemainingEntries()).
         build();
   }
@@ -3523,7 +3543,7 @@ public class PBHelperClient {
     if (fs.getFileEncryptionInfo() != null) {
       builder.setFileEncryptionInfo(convert(fs.getFileEncryptionInfo()));
     }
-    HDDSLocatedBlocks locations = fs.getLocatedBlocks();
+    HDDSLocatedBlocks locations = fs.getHDDSLocatedBlocks();
     if (locations != null) {
       builder.setLocations(convert(locations));
     }
@@ -3561,5 +3581,25 @@ public class PBHelperClient {
         .setUnderConstruction(lb.isUnderConstruction())
         .addAllBlocks(convertLocationInfoList(lb.getLocatedBlocks()))
         .setIsLastBlockComplete(lb.isLastBlockComplete()).build();
+  }
+
+  public static DirectoryListing convert(HDDSDirectoryListingProto dl) {
+    if (dl == null)
+      return null;
+    List<HDDSFileStatusProto> partList =  dl.getPartialListingList();
+    return new DirectoryListing(partList.isEmpty()
+        ? new HdfsFileStatus[0]
+        : convert(partList.toArray(new HDDSFileStatusProto[partList.size()])),
+        dl.getRemainingEntries());
+  }
+
+  private static HdfsFileStatus[] convert(HDDSFileStatusProto[] fs) {
+    if (fs == null) return null;
+    final int len = fs.length;
+    HdfsFileStatus[] result = new HdfsFileStatus[len];
+    for (int i = 0; i < len; ++i) {
+      result[i] = convert(fs[i]);
+    }
+    return result;
   }
 }

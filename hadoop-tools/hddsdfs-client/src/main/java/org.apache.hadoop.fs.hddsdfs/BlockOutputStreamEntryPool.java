@@ -269,9 +269,11 @@ public class BlockOutputStreamEntryPool {
 
   void commitKey(long offset) throws IOException {
     if (src != null) {
-      long lastBlockLength =
-          streamEntries.get(streamEntries.size() - 1).getCurrentPosition();
-      currentBlock.setLength(lastBlockLength);
+      if (streamEntries.size() > 0) {
+        long lastBlockLength =
+            streamEntries.get(streamEntries.size() - 1).getCurrentPosition();
+        currentBlock.setLength(lastBlockLength);
+      }
       dfsClient.getNamenode().completeHDDSFile(src,
           dfsClient.getClientName(), currentBlock, stat.getFileId());
     } else {

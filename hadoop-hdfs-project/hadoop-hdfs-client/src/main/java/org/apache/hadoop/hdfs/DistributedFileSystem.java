@@ -1127,7 +1127,7 @@ public class DistributedFileSystem extends FileSystem
    * more details.
    */
   @Override
-  protected RemoteIterator<LocatedFileStatus> listLocatedStatus(final Path p,
+  public RemoteIterator<LocatedFileStatus> listLocatedStatus(final Path p,
       final PathFilter filter)
       throws IOException {
     Path absF = fixRelativePart(p);

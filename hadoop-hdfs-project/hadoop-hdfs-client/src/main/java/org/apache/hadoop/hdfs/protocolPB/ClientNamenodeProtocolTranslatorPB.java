@@ -52,7 +52,7 @@ import org.apache.hadoop.ha.HAServiceProtocol;
 import org.apache.hadoop.ha.proto.HAServiceProtocolProtos.HAServiceStateProto;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
-import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.GetHDDSListingResponseProto;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.AddBlockFlag;
 import org.apache.hadoop.hdfs.inotify.EventBatchList;
@@ -2070,4 +2070,24 @@ public class ClientNamenodeProtocolTranslatorPB implements
       throw ProtobufHelper.getRemoteException(e);
     }
   }
+
+  @Override
+  public DirectoryListing getHDDSListing(String src, byte[] startAfter,
+      boolean needLocation) throws IOException {
+    GetListingRequestProto req = GetListingRequestProto.newBuilder()
+        .setSrc(src)
+        .setStartAfter(ByteString.copyFrom(startAfter))
+        .setNeedLocation(needLocation).build();
+    try {
+      GetHDDSListingResponseProto result = rpcProxy.getHDDSListing(null, req);
+
+      if (result.hasDirList()) {
+        return PBHelperClient.convert(result.getDirList());
+      }
+      return null;
+    } catch (ServiceException e) {
+      throw ProtobufHelper.getRemoteException(e);
+    }
+  }
+
 }
