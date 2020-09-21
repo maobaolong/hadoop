@@ -20,6 +20,7 @@ package org.apache.hadoop.hdfs.server.blockmanagement;
 import java.util.Map;
 
 import org.apache.hadoop.fs.StorageType;
+import org.apache.hadoop.metrics2.annotation.Metric;
 
 /**
  * This is an interface used to retrieve statistic information related to
@@ -33,4 +34,62 @@ public interface BlockStatsMXBean {
    * @return get storage statistics per storage type
    */
   Map<StorageType, StorageTypeStats> getStorageTypeStats();
+
+  /**
+   * Gets the total numbers of blocks on the cluster.
+   *
+   * @return the total number of blocks of the cluster
+   */
+  long getTotalBlocks();
+
+  int getActiveBlockCount();
+
+  /**
+   * @return the size of UnderReplicatedBlocks
+   */
+  int numOfUnderReplicatedBlocks();
+
+  long getHighestPriorityReplicatedBlockCount();
+
+  long getHighestPriorityECBlockCount();
+
+  int getCapacity();
+
+  long getProvidedCapacity();
+
+  /**
+   * Get aggregated count of all blocks with low redundancy.
+   */
+  long getLowRedundancyBlocksCount();
+
+  /** Returns number of blocks with corrupt replicas */
+  long getCorruptReplicaBlocksCount();
+
+
+  long getScheduledReplicationBlocksCount();
+
+  long getPendingDeletionBlocksCount();
+
+  long getMissingBlocksCount();
+
+  long getExcessBlocksCount();
+
+  long getMissingReplOneBlocksCount();
+
+  long getNumTimedOutPendingReconstructions();
+
+  /**
+   * Get aggregated count of all blocks pending to be reconstructed.
+   */
+  long getPendingReconstructionBlocksCount();
+
+  long getStartupDelayBlockDeletionInMs();
+
+  int getUnderReplicatedNotMissingBlocks();
+
+  // HA-only metric
+  long getPostponedMisreplicatedBlocksCount();
+
+  // HA-only metric
+  int getPendingDataNodeMessageCount();
 }

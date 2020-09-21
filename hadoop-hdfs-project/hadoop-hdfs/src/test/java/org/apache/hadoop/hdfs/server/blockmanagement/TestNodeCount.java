@@ -64,8 +64,10 @@ public class TestNodeCount {
       new MiniDFSCluster.Builder(conf).numDataNodes(REPLICATION_FACTOR).build();
     try {
       final FSNamesystem namesystem = cluster.getNamesystem();
-      final BlockManager bm = namesystem.getBlockManager();
-      final HeartbeatManager hm = bm.getDatanodeManager().getHeartbeatManager();
+      final HDFSBlockManager bm =
+          (HDFSBlockManager)namesystem.getBlockManager();
+      final HDFSHeartbeatManager hm =
+          (HDFSHeartbeatManager)bm.getDatanodeManager().getHeartbeatManager();
       final FileSystem fs = cluster.getFileSystem();
       
       // populate the cluster with a one block file

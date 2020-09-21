@@ -193,7 +193,7 @@ public class TestNameNodePrunesMissingStorages {
             cluster.getNamesystem().getBlockManager().
                 getStoredBlock(block.getLocalBlock());
         Iterator<DatanodeStorageInfo> storageInfoIter =
-            cluster.getNamesystem().getBlockManager().
+            ((HDFSBlockManager)cluster.getNamesystem().getBlockManager()).
                 blocksMap.getStorages(storedBlock).iterator();
         assertTrue(storageInfoIter.hasNext());
         DatanodeStorageInfo info = storageInfoIter.next();

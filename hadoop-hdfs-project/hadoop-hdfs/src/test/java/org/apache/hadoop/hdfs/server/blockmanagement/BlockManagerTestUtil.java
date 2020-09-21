@@ -40,9 +40,9 @@ import org.junit.Assert;
 import com.google.common.base.Preconditions;
 
 public class BlockManagerTestUtil {
-  public static void setNodeReplicationLimit(final BlockManager blockManager,
-      final int limit) {
-    blockManager.maxReplicationStreams = limit;
+  public static void setNodeReplicationLimit(
+      final BlockManager blockManager, final int limit) {
+    ((HDFSBlockManager)blockManager).maxReplicationStreams = limit;
   }
 
   /** @return the datanode descriptor for the given the given storageID. */
@@ -76,7 +76,7 @@ public class BlockManagerTestUtil {
    * Refresh block queue counts on the name-node.
    */
   public static void updateState(final BlockManager blockManager) {
-    blockManager.updateState();
+    ((HDFSBlockManager)blockManager).updateState();
   }
 
   /**
@@ -84,7 +84,7 @@ public class BlockManagerTestUtil {
    * replicas, and number needed replicas) for the given block.
    */
   public static int[] getReplicaInfo(final FSNamesystem namesystem, final Block b) {
-    final BlockManager bm = namesystem.getBlockManager();
+    final HDFSBlockManager bm = (HDFSBlockManager)namesystem.getBlockManager();
     namesystem.readLock();
     try {
       final BlockInfo storedBlock = bm.getStoredBlock(b);
@@ -105,8 +105,9 @@ public class BlockManagerTestUtil {
       final Block b) {
     final Set<String> rackSet = new HashSet<String>(0);
     final Collection<DatanodeDescriptor> corruptNodes = 
-       getCorruptReplicas(blockManager).getNodes(b);
-    for(DatanodeStorageInfo storage : blockManager.blocksMap.getStorages(b)) {
+       getCorruptReplicas( ((HDFSBlockManager)blockManager)).getNodes(b);
+    for(DatanodeStorageInfo storage :
+        ((HDFSBlockManager)blockManager).blocksMap.getStorages(b)) {
       final DatanodeDescriptor cur = storage.getDatanodeDescriptor();
       if (!cur.isDecommissionInProgress() && !cur.isDecommissioned()) {
         if ((corruptNodes == null ) || !corruptNodes.contains(cur)) {
@@ -123,19 +124,20 @@ public class BlockManagerTestUtil {
   /**
    * @return redundancy monitor thread instance from block manager.
    */
-  public static Daemon getRedundancyThread(final BlockManager blockManager) {
-    return blockManager.getRedundancyThread();
+  public static Daemon getRedundancyThread(
+      final BlockManager blockManager) {
+    return  ((HDFSBlockManager)blockManager).getRedundancyThread();
   }
 
   /**
    * Stop the redundancy monitor thread.
    */
-  public static void stopRedundancyThread(final BlockManager blockManager)
-      throws IOException {
-    blockManager.enableRMTerminationForTesting();
-    blockManager.getRedundancyThread().interrupt();
+  public static void stopRedundancyThread(
+      final BlockManager blockManager) throws IOException {
+    ((HDFSBlockManager)blockManager).enableRMTerminationForTesting();
+    ((HDFSBlockManager)blockManager).getRedundancyThread().interrupt();
     try {
-      blockManager.getRedundancyThread().join();
+      ((HDFSBlockManager)blockManager).getRedundancyThread().join();
     } catch (InterruptedException ie) {
       throw new IOException(
           "Interrupted while trying to stop RedundancyMonitor");
@@ -150,7 +152,8 @@ public class BlockManagerTestUtil {
   /**
    * @return corruptReplicas from block manager
    */
-  public static  CorruptReplicasMap getCorruptReplicas(final BlockManager blockManager){
+  public static  CorruptReplicasMap getCorruptReplicas(
+      final HDFSBlockManager blockManager){
     return blockManager.corruptReplicas;
     
   }
@@ -160,13 +163,13 @@ public class BlockManagerTestUtil {
    *         scheduled on data-nodes.
    * @throws IOException
    */
-  public static int getComputedDatanodeWork(final BlockManager blockManager) throws IOException
-  {
-    return blockManager.computeDatanodeWork();
+  public static int getComputedDatanodeWork(final BlockManager blockManager)
+      throws IOException {
+    return ((HDFSBlockManager)blockManager).computeDatanodeWork();
   }
   
   public static int computeInvalidationWork(BlockManager bm) {
-    return bm.computeInvalidateWork(Integer.MAX_VALUE);
+    return ((HDFSBlockManager)bm).computeInvalidateWork(Integer.MAX_VALUE);
   }
 
   /**
@@ -174,9 +177,9 @@ public class BlockManagerTestUtil {
    * @param blockManager
    */
   public static void checkRedundancy(final BlockManager blockManager) {
-    blockManager.computeDatanodeWork();
-    blockManager.processPendingReconstructions();
-    blockManager.rescanPostponedMisreplicatedBlocks();
+    ((HDFSBlockManager)blockManager).computeDatanodeWork();
+    ((HDFSBlockManager)blockManager).processPendingReconstructions();
+    ((HDFSBlockManager)blockManager).rescanPostponedMisreplicatedBlocks();
   }
 
   /**
@@ -193,7 +196,8 @@ public class BlockManagerTestUtil {
    */
   public static int computeAllPendingWork(BlockManager bm) {
     int work = computeInvalidationWork(bm);
-    work += bm.computeBlockReconstructionWork(Integer.MAX_VALUE);
+    work += ((HDFSBlockManager)bm).computeBlockReconstructionWork(
+        Integer.MAX_VALUE);
     return work;
   }
 
@@ -208,7 +212,8 @@ public class BlockManagerTestUtil {
     namesystem.writeLock();
     try {
       DatanodeManager dnm = namesystem.getBlockManager().getDatanodeManager();
-      HeartbeatManager hbm = dnm.getHeartbeatManager();
+      HDFSHeartbeatManager hbm =
+          (HDFSHeartbeatManager)dnm.getHeartbeatManager();
       DatanodeDescriptor[] dnds = hbm.getDatanodes();
       DatanodeDescriptor theDND = null;
       for (DatanodeDescriptor dnd : dnds) {
@@ -234,7 +239,7 @@ public class BlockManagerTestUtil {
    */
   public static void setWritingPrefersLocalNode(
       BlockManager bm, boolean prefer) {
-    BlockPlacementPolicy bpp = bm.getBlockPlacementPolicy();
+    BlockPlacementPolicy bpp = ((HDFSBlockManager)bm).getBlockPlacementPolicy();
     Preconditions.checkState(bpp instanceof BlockPlacementPolicyDefault,
         "Must use default policy, got %s", bpp.getClass());
     ((BlockPlacementPolicyDefault)bpp).setPreferLocalNode(prefer);
@@ -245,7 +250,8 @@ public class BlockManagerTestUtil {
    * @param bm the BlockManager to manipulate
    */
   public static void checkHeartbeat(BlockManager bm) {
-    HeartbeatManager hbm = bm.getDatanodeManager().getHeartbeatManager();
+    HDFSHeartbeatManager hbm =
+        (HDFSHeartbeatManager)bm.getDatanodeManager().getHeartbeatManager();
     hbm.restartHeartbeatStopWatch();
     hbm.heartbeatCheck();
   }
@@ -279,7 +285,7 @@ public class BlockManagerTestUtil {
    * @param bm the BlockManager to manipulate
    */
   public static void rescanPostponedMisreplicatedBlocks(BlockManager bm) {
-    bm.rescanPostponedMisreplicatedBlocks();
+    ((HDFSBlockManager)bm).rescanPostponedMisreplicatedBlocks();
   }
 
   public static DatanodeDescriptor getLocalDatanodeDescriptor(
@@ -338,7 +344,8 @@ public class BlockManagerTestUtil {
    */
   public static void recheckDecommissionState(DatanodeManager dm)
       throws ExecutionException, InterruptedException {
-    dm.getDatanodeAdminManager().runMonitorForTest();
+    ((HDFSDatanodeAdminManager)dm.getDatanodeAdminManager())
+        .runMonitorForTest();
   }
 
   /**

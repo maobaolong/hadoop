@@ -39,6 +39,7 @@ import org.apache.hadoop.hdfs.server.blockmanagement.BlockManagerTestUtil;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeStorageInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.HDFSBlockManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.NumberReplicas;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.datanode.DataNodeTestUtils;
@@ -138,7 +139,8 @@ public class TestReconstructStripedBlocks {
         assertEquals(groupSize, sb.numNodes());
       }
 
-      final BlockManager bm = cluster.getNamesystem().getBlockManager();
+      final HDFSBlockManager bm =
+          (HDFSBlockManager)cluster.getNamesystem().getBlockManager();
       BlockInfo firstBlock = fileNode.getBlocks()[0];
       DatanodeStorageInfo[] storageInfos = bm.getStorages(firstBlock);
 
@@ -207,7 +209,8 @@ public class TestReconstructStripedBlocks {
     try {
       cluster.waitActive();
       DistributedFileSystem fs = cluster.getFileSystem();
-      BlockManager bm = cluster.getNamesystem().getBlockManager();
+      HDFSBlockManager bm =
+          (HDFSBlockManager)cluster.getNamesystem().getBlockManager();
       fs.enableErasureCodingPolicy(
           StripedFileTestUtil.getDefaultECPolicy().getName());
       fs.getClient().setErasureCodingPolicy("/",
@@ -398,7 +401,8 @@ public class TestReconstructStripedBlocks {
       DFSTestUtil.createStripedFile(dfsCluster, ecFilePath, ecDir,
           blockGroups, 2, false, policy);
 
-      final BlockManager bm = dfsCluster.getNamesystem().getBlockManager();
+      final HDFSBlockManager bm =
+          (HDFSBlockManager)dfsCluster.getNamesystem().getBlockManager();
       LocatedBlocks lbs = fs.getClient().getNamenode().getBlockLocations(
           ecFilePath.toString(), 0, blockGroups);
       assert lbs.get(0) instanceof LocatedStripedBlock;

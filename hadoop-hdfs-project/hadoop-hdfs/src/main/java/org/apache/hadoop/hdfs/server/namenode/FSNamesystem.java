@@ -30,6 +30,7 @@ import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.IO_FILE_BUFFER_
 import static org.apache.hadoop.fs.CommonConfigurationKeysPublic.IO_FILE_BUFFER_SIZE_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_BLOCK_SIZE_DEFAULT;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_BLOCK_SIZE_KEY;
+import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_REPLICATION_MAX_STREAMS_KEY;
 import static org.apache.hadoop.hdfs.client.HdfsClientConfigKeys.DFS_BYTES_PER_CHECKSUM_DEFAULT;
 import static org.apache.hadoop.hdfs.client.HdfsClientConfigKeys.DFS_BYTES_PER_CHECKSUM_KEY;
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_CHECKSUM_TYPE_DEFAULT;
@@ -137,6 +138,7 @@ import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.protocol.ZoneReencryptionStatus;
 import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.hddsblockmanager.HDDSBlockManager;
+import org.apache.hadoop.hdfs.server.blockmanagement.HDFSBlockManager;
 import org.apache.hadoop.hdfs.server.namenode.metrics.ReplicatedBlocksMBean;
 import org.apache.hadoop.hdfs.server.protocol.SlowDiskReports;
 
@@ -808,7 +810,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       }
 
       // block manager needs the haEnabled initialized
-      this.blockManager = new BlockManager(this, haEnabled, conf);
+      this.blockManager = new HDFSBlockManager(this, haEnabled, conf);
       this.hddsBlockManager = new HDDSBlockManager(this, haEnabled, conf);
 
       this.datanodeStatistics = blockManager.getDatanodeManager().getDatanodeStatistics();
@@ -1191,7 +1193,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       long completeBlocksTotal = getCompleteBlocksTotal();
       prog.setTotal(Phase.SAFEMODE, STEP_AWAITING_REPORTED_BLOCKS,
           completeBlocksTotal);
-      blockManager.activate(conf, completeBlocksTotal);
+      blockManager.start(conf, completeBlocksTotal);
     } finally {
       writeUnlock("startCommonServices");
     }
@@ -1319,7 +1321,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       }
     } finally {
       startingActiveService = false;
-      blockManager.checkSafeMode();
+      blockManager.getSafeModeManager().checkSafeMode();
       writeUnlock("startActiveServices");
     }
   }
@@ -2863,7 +2865,8 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     }
 
     // choose new datanodes.
-    final DatanodeStorageInfo[] targets = blockManager.chooseTarget4AdditionalDatanode(
+    final DatanodeStorageInfo[] targets =
+        blockManager.chooseTarget4AdditionalDatanode(
         src, numAdditionalNodes, clientnode, chosen, 
         excludes, preferredblocksize, storagePolicyID, blockType);
     final LocatedBlock lb = BlockManager.newLocatedBlock(
@@ -3527,7 +3530,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       // or the previous recovery for this block timed out.
       if (blockManager.addBlockRecoveryAttempt(lastBlock)) {
         long blockRecoveryId = nextGenerationStamp(
-            blockManager.isLegacyBlock(lastBlock));
+            blockManager.getBlockIdManager().isLegacyBlock(lastBlock));
         if(copyOnTruncate) {
           lastBlock.setGenerationStamp(blockRecoveryId);
         } else if(truncateRecovery) {
@@ -3977,8 +3980,8 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     readLock();
     try {
       //get datanode commands
-      final int maxTransfer = blockManager.getMaxReplicationStreams()
-          - xmitsInProgress;
+      final int maxTransfer = (Integer)blockManager.getProperty(
+          DFS_NAMENODE_REPLICATION_MAX_STREAMS_KEY) - xmitsInProgress;
       DatanodeCommand[] cmds = blockManager.getDatanodeManager().handleHeartbeat(
           nodeReg, reports, getBlockPoolId(), cacheCapacity, cacheUsed,
           xceiverCount, maxTransfer, failedVolumes, volumeFailureSummary,
@@ -4025,7 +4028,8 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       long cacheCapacity, long cacheUsed, int xceiverCount, int xmitsInProgress,
       int failedVolumes, VolumeFailureSummary volumeFailureSummary)
       throws IOException {
-    int maxTransfer = blockManager.getMaxReplicationStreams() - xmitsInProgress;
+    int maxTransfer = (Integer)blockManager.getProperty(
+        DFS_NAMENODE_REPLICATION_MAX_STREAMS_KEY) - xmitsInProgress;
     blockManager.getDatanodeManager().handleLifeline(nodeReg, reports,
         getBlockPoolId(), cacheCapacity, cacheUsed, xceiverCount, maxTransfer,
         failedVolumes, volumeFailureSummary);
@@ -4316,7 +4320,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     stats[ClientProtocol.GET_STATS_MISSING_REPL_ONE_BLOCKS_IDX] =
         getMissingReplOneBlocksCount();
     stats[ClientProtocol.GET_STATS_BYTES_IN_FUTURE_BLOCKS_IDX] =
-        blockManager.getBytesInFuture();
+        blockManager.getSafeModeManager().getBytesInFuture();
     stats[ClientProtocol.GET_STATS_PENDING_DELETION_BLOCKS_IDX] =
         blockManager.getPendingDeletionBlocksCount();
     return stats;
@@ -4466,7 +4470,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     readLock();
     try {
       checkOperation(OperationCategory.UNCHECKED);
-      final DatanodeManager dm = getBlockManager().getDatanodeManager();      
+      final DatanodeManager dm = getBlockManager().getDatanodeManager();
       final List<DatanodeDescriptor> results = dm.getDatanodeListForReport(type);
       arr = new DatanodeInfo[results.size()];
       for (int i=0; i<arr.length; i++) {
@@ -4490,7 +4494,8 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     readLock();
     try {
       checkOperation(OperationCategory.UNCHECKED);
-      final DatanodeManager dm = getBlockManager().getDatanodeManager();      
+      final DatanodeManager dm =
+          getBlockManager().getDatanodeManager();
       reports = dm.getDatanodeStorageReport(type);
     } finally {
       readUnlock("getDatanodeStorageReport");
@@ -4671,12 +4676,14 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
 
   @Override
   public boolean isInSafeMode() {
-    return isInManualOrResourceLowSafeMode() || blockManager.isInSafeMode();
+    return isInManualOrResourceLowSafeMode() ||
+        blockManager.getSafeModeManager().isInSafeMode();
   }
 
   @Override
   public boolean isInStartupSafeMode() {
-    return !isInManualOrResourceLowSafeMode() && blockManager.isInSafeMode();
+    return !isInManualOrResourceLowSafeMode() &&
+        blockManager.getSafeModeManager().isInSafeMode();
   }
 
   /**
@@ -4718,7 +4725,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
         NameNode.stateChangeLog.info("STATE* Safe mode is already OFF"); 
         return;
       }
-      if (blockManager.leaveSafeMode(force)) {
+      if (blockManager.getSafeModeManager().leaveSafeMode(force)) {
         setManualAndResourceLowSafeMode(false, false);
         startSecretManagerIfNecessary();
       }
@@ -4740,7 +4747,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       }
     }
 
-    return blockManager.getSafeModeTip();
+    return blockManager.getSafeModeManager().getSafeModeTip();
   }
 
   /**
@@ -4923,19 +4930,19 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   @Metric({"LowRedundancyReplicatedBlocks",
       "Number of low redundancy replicated blocks"})
   public long getLowRedundancyReplicatedBlocks() {
-    return blockManager.getLowRedundancyBlocks();
+    return blockManager.getLowRedundancyReplicatedBlocks();
   }
 
   @Override // ReplicatedBlocksMBean
   @Metric({"CorruptReplicatedBlocks", "Number of corrupted replicated blocks"})
   public long getCorruptReplicatedBlocks() {
-    return blockManager.getCorruptBlocks();
+    return blockManager.getCorruptReplicatedBlocks();
   }
 
   @Override // ReplicatedBlocksMBean
   @Metric({"MissingReplicatedBlocks", "Number of missing replicated blocks"})
   public long getMissingReplicatedBlocks() {
-    return blockManager.getMissingBlocks();
+    return blockManager.getMissingReplicatedBlocks();
   }
 
   @Override // ReplicatedBlocksMBean
@@ -4949,7 +4956,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   @Metric({"HighestPriorityLowRedundancyReplicatedBlocks", "Number of " +
       "replicated blocks which have the highest risk of loss."})
   public long getHighestPriorityLowRedundancyReplicatedBlocks() {
-    return blockManager.getHighestPriorityReplicatedBlockCount();
+    return blockManager.getHighestPriorityLowRedundancyReplicatedBlocks();
   }
 
   @Override // ReplicatedBlocksMBean
@@ -5285,7 +5292,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     assert hasWriteLock();
     checkNameNodeSafeMode("Cannot get next generation stamp");
 
-    long gs = blockManager.nextGenerationStamp(legacyBlock);
+    long gs = blockManager.getBlockIdManager().nextGenerationStamp(legacyBlock);
     if (legacyBlock) {
       getEditLog().logLegacyGenerationStamp(gs);
     } else {
@@ -5303,7 +5310,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   private long nextBlockId(BlockType blockType) throws IOException {
     assert hasWriteLock();
     checkNameNodeSafeMode("Cannot get next block ID");
-    final long blockId = blockManager.nextBlockId(blockType);
+    final long blockId = blockManager.getBlockIdManager().nextBlockId(blockType);
     getEditLog().logAllocateBlockId(blockId);
     // NB: callers sync the log
     return blockId;
@@ -5432,8 +5439,8 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       final INodeFile file = checkUCBlock(block, clientName);
   
       // get a new generation stamp and an access token
-      block.setGenerationStamp(nextGenerationStamp(
-          blockManager.isLegacyBlock(block.getLocalBlock())));
+      block.setGenerationStamp(nextGenerationStamp(blockManager
+          .getBlockIdManager().isLegacyBlock(block.getLocalBlock())));
 
       locatedBlock = BlockManager.newLocatedBlock(
           block, file.getLastBlock(), null, -1);
@@ -8164,7 +8171,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
    * @return number of bytes that can be deleted if exited from safe mode.
    */
   public long getBytesInFuture() {
-    return blockManager.getBytesInFuture();
+    return blockManager.getSafeModeManager().getBytesInFuture();
   }
 
 

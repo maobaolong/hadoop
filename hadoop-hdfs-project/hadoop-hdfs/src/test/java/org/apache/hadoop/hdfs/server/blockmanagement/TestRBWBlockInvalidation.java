@@ -226,8 +226,8 @@ public class TestRBWBlockInvalidation {
         cluster.waitActive();
         
         // Compute and send invalidations, waiting until they're fully processed.
-        cluster.getNameNode().getNamesystem().getBlockManager()
-          .computeInvalidateWork(2);
+        ((HDFSBlockManager)cluster.getNameNode().getNamesystem()
+            .getBlockManager()).computeInvalidateWork(2);
         cluster.triggerHeartbeats();
         HATestUtil.waitForDNDeletions(cluster);
         cluster.triggerDeletionReports();

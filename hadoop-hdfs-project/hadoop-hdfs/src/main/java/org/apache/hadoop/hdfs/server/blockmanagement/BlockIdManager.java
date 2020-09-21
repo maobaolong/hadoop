@@ -169,7 +169,7 @@ public class BlockIdManager {
   /**
    * Increments, logs and then returns the stamp
    */
-  long nextGenerationStamp(boolean legacyBlock) throws IOException {
+  public long nextGenerationStamp(boolean legacyBlock) throws IOException {
     return legacyBlock ? getNextLegacyGenerationStamp() :
         getNextGenerationStamp();
   }
@@ -205,14 +205,14 @@ public class BlockIdManager {
    *
    * @return true if the block ID was randomly generated, false otherwise.
    */
-  boolean isLegacyBlock(Block block) {
+  public boolean isLegacyBlock(Block block) {
     return block.getGenerationStamp() < getLegacyGenerationStampLimit();
   }
 
   /**
    * Increments, logs and then returns the block ID
    */
-  long nextBlockId(BlockType blockType) {
+  public long nextBlockId(BlockType blockType) {
     switch(blockType) {
     case CONTIGUOUS: return blockIdGenerator.nextValue();
     case STRIPED: return blockGroupIdGenerator.nextValue();

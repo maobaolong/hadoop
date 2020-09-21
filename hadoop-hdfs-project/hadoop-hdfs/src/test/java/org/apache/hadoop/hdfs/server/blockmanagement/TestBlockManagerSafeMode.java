@@ -67,7 +67,7 @@ public class TestBlockManagerSafeMode {
   private static final int EXTENSION = 1000; // 1 second
 
   private FSNamesystem fsn;
-  private BlockManager bm;
+  private HDFSBlockManager bm;
   private DatanodeManager dn;
   private BlockManagerSafeMode bmSafeMode;
 
@@ -97,7 +97,7 @@ public class TestBlockManagerSafeMode {
     doReturn(true).when(fsn).isRunning();
     NameNode.initMetrics(conf, NamenodeRole.NAMENODE);
 
-    bm = spy(new BlockManager(fsn, false, conf));
+    bm = spy(new HDFSBlockManager(fsn, false, conf));
     doReturn(true).when(bm).isGenStampInFuture(any(Block.class));
     dn = spy(bm.getDatanodeManager());
     Whitebox.setInternalState(bm, "datanodeManager", dn);
@@ -482,7 +482,7 @@ public class TestBlockManagerSafeMode {
 
     NameNode.initMetrics(conf, NamenodeRole.NAMENODE);
 
-    BlockManager blockManager = spy(new BlockManager(fsn, false, conf));
+    BlockManager blockManager = spy(new HDFSBlockManager(fsn, false, conf));
 
     BlockManagerSafeMode safeMode = new BlockManagerSafeMode(blockManager,
         fsn, false, conf);

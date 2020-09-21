@@ -69,9 +69,12 @@ public class TestRefreshNamenodeReplicationConfig {
   @Test(timeout = 90000)
   public void testParamsCanBeReconfigured() throws ReconfigurationException {
 
-    assertEquals(8, bm.getMaxReplicationStreams());
-    assertEquals(10, bm.getReplicationStreamsHardLimit());
-    assertEquals(12, bm.getBlocksReplWorkMultiplier());
+    assertEquals(8, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_MAX_STREAMS_KEY));
+    assertEquals(10, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_STREAMS_HARD_LIMIT_KEY));
+    assertEquals(12, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_WORK_MULTIPLIER_PER_ITERATION));
 
     cluster.getNameNode().reconfigurePropertyImpl(
         DFSConfigKeys.DFS_NAMENODE_REPLICATION_MAX_STREAMS_KEY, "20");
@@ -82,9 +85,12 @@ public class TestRefreshNamenodeReplicationConfig {
         DFSConfigKeys.DFS_NAMENODE_REPLICATION_WORK_MULTIPLIER_PER_ITERATION,
         "24");
 
-    assertEquals(20, bm.getMaxReplicationStreams());
-    assertEquals(22, bm.getReplicationStreamsHardLimit());
-    assertEquals(24, bm.getBlocksReplWorkMultiplier());
+    assertEquals(20, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_MAX_STREAMS_KEY));
+    assertEquals(22, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_STREAMS_HARD_LIMIT_KEY));
+    assertEquals(24, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_WORK_MULTIPLIER_PER_ITERATION));
   }
 
   /**
@@ -109,9 +115,12 @@ public class TestRefreshNamenodeReplicationConfig {
           +"positive, non-zero integer value.", e.getCause().getMessage());
     }
     // Ensure none of the values were updated from the defaults
-    assertEquals(8, bm.getMaxReplicationStreams());
-    assertEquals(10, bm.getReplicationStreamsHardLimit());
-    assertEquals(12, bm.getBlocksReplWorkMultiplier());
+    assertEquals(8, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_MAX_STREAMS_KEY));
+    assertEquals(10, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_STREAMS_HARD_LIMIT_KEY));
+    assertEquals(12, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_WORK_MULTIPLIER_PER_ITERATION));
 
     for (String key : keys) {
       ReconfigurationException e =
@@ -123,9 +132,12 @@ public class TestRefreshNamenodeReplicationConfig {
     }
 
     // Ensure none of the values were updated from the defaults
-    assertEquals(8, bm.getMaxReplicationStreams());
-    assertEquals(10, bm.getReplicationStreamsHardLimit());
-    assertEquals(12, bm.getBlocksReplWorkMultiplier());
+    assertEquals(8, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_MAX_STREAMS_KEY));
+    assertEquals(10, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_STREAMS_HARD_LIMIT_KEY));
+    assertEquals(12, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_WORK_MULTIPLIER_PER_ITERATION));
 
     // Ensure none of the parameters can be set to a string value
     for (String key : keys) {
@@ -136,8 +148,11 @@ public class TestRefreshNamenodeReplicationConfig {
     }
 
     // Ensure none of the values were updated from the defaults
-    assertEquals(8, bm.getMaxReplicationStreams());
-    assertEquals(10, bm.getReplicationStreamsHardLimit());
-    assertEquals(12, bm.getBlocksReplWorkMultiplier());
+    assertEquals(8, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_MAX_STREAMS_KEY));
+    assertEquals(10, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_STREAMS_HARD_LIMIT_KEY));
+    assertEquals(12, bm.getProperty(
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_WORK_MULTIPLIER_PER_ITERATION));
   }
 }

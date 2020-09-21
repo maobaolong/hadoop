@@ -24,6 +24,7 @@ import org.apache.hadoop.hdfs.protocol.LocatedStripedBlock;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor;
+import org.apache.hadoop.hdfs.server.blockmanagement.HDFSBlockManager;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.datanode.DataNodeTestUtils;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
@@ -153,7 +154,7 @@ public class TestReadStripedFileWithDecoding {
       dfs.delete(file, true);
       // check the block is added to invalidateBlocks
       final FSNamesystem fsn = cluster.getNamesystem();
-      final BlockManager bm = fsn.getBlockManager();
+      final HDFSBlockManager bm = (HDFSBlockManager)fsn.getBlockManager();
       DatanodeDescriptor dnd =
           NameNodeAdapter.getDatanode(fsn, dn.getDatanodeId());
       Assert.assertTrue(bm.containsInvalidateBlock(

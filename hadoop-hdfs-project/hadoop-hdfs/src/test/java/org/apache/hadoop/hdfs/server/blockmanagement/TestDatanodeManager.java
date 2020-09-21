@@ -86,7 +86,7 @@ public class TestDatanodeManager {
     BlockManager bm = Mockito.mock(BlockManager.class);
     BlockReportLeaseManager blm = new BlockReportLeaseManager(conf);
     Mockito.when(bm.getBlockReportLeaseManager()).thenReturn(blm);
-    DatanodeManager dm = new DatanodeManager(bm, fsn, conf);
+    DatanodeManager dm = new HDFSDatanodeManager(bm, fsn, conf);
     return dm;
   }
 

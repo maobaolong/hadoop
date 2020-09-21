@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hdfs;
 
+import org.apache.hadoop.hdfs.server.blockmanagement.HDFSBlockManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -25,7 +26,6 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.client.HdfsClientConfigKeys;
 import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -69,7 +69,8 @@ public class TestMissingBlocksAlert {
       cluster = new MiniDFSCluster.Builder(conf).build();
       cluster.waitActive();
 
-      final BlockManager bm = cluster.getNamesystem().getBlockManager();
+      final HDFSBlockManager bm =
+          (HDFSBlockManager)cluster.getNamesystem().getBlockManager();
       DistributedFileSystem dfs =
           cluster.getFileSystem();
 

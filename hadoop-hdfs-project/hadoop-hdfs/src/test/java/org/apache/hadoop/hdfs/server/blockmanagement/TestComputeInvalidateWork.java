@@ -56,7 +56,7 @@ public class TestComputeInvalidateWork {
   private final int NUM_OF_DATANODES = 3;
   private MiniDFSCluster cluster;
   private FSNamesystem namesystem;
-  private BlockManager bm;
+  private HDFSBlockManager bm;
   private DatanodeDescriptor[] nodes;
   private ErasureCodingPolicy ecPolicy;
   private DistributedFileSystem fs;
@@ -73,8 +73,9 @@ public class TestComputeInvalidateWork {
         .build();
     cluster.waitActive();
     namesystem = cluster.getNamesystem();
-    bm = namesystem.getBlockManager();
-    nodes = bm.getDatanodeManager().getHeartbeatManager().getDatanodes();
+    bm = (HDFSBlockManager) namesystem.getBlockManager();
+    nodes = bm.getDatanodeManager().getDatanodes()
+        .toArray(new DatanodeDescriptor[0]);
     BlockManagerTestUtil.stopRedundancyThread(bm);
     assertEquals(nodes.length, NUM_OF_DATANODES);
 
@@ -124,7 +125,7 @@ public class TestComputeInvalidateWork {
   }
 
   /**
-   * Test if {@link BlockManager#computeInvalidateWork(int)}
+   * Test if {@link HDFSBlockManager#computeInvalidateWork(int)}
    * can schedule invalidate work correctly for the replicas.
    */
   @Test(timeout=120000)
@@ -147,7 +148,7 @@ public class TestComputeInvalidateWork {
   }
 
   /**
-   * Test if {@link BlockManager#computeInvalidateWork(int)}
+   * Test if {@link HDFSBlockManager#computeInvalidateWork(int)}
    * can schedule invalidate work correctly for the striped block groups.
    */
   @Test(timeout=120000)
@@ -172,7 +173,7 @@ public class TestComputeInvalidateWork {
   }
 
   /**
-   * Test if {@link BlockManager#computeInvalidateWork(int)}
+   * Test if {@link HDFSBlockManager#computeInvalidateWork(int)}
    * can schedule invalidate work correctly for both replicas and striped
    * block groups, combined.
    */
@@ -207,7 +208,7 @@ public class TestComputeInvalidateWork {
 
   /**
    * Reformatted DataNodes will replace the original UUID in the
-   * {@link DatanodeManager#datanodeMap}. This tests if block
+   * {@link HDFSDatanodeManager#datanodeMap}. This tests if block
    * invalidation work on the original DataNode can be skipped.
    */
   @Test(timeout=120000)

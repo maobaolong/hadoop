@@ -58,9 +58,10 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManagerTestUtil;
+import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeAdminManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeManager;
-import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeAdminManager;
+import org.apache.hadoop.hdfs.server.blockmanagement.HDFSDatanodeAdminManager;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.BlockUCState;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.datanode.DataNodeTestUtils;
@@ -961,7 +962,8 @@ public class TestDecommission extends AdminStatesBaseTest {
 
     // make sure the two datanodes remain in decomm in progress state
     BlockManagerTestUtil.recheckDecommissionState(dm);
-    assertTrackedAndPending(dm.getDatanodeAdminManager(), 2, 0);
+    assertTrackedAndPending(
+        (HDFSDatanodeAdminManager)dm.getDatanodeAdminManager(), 2, 0);
   }
 
   /**
@@ -1223,7 +1225,7 @@ public class TestDecommission extends AdminStatesBaseTest {
   
   @Test(timeout=120000)
   public void testBlocksPerInterval() throws Exception {
-    org.apache.log4j.Logger.getLogger(DatanodeAdminManager.class)
+    org.apache.log4j.Logger.getLogger(HDFSDatanodeAdminManager.class)
         .setLevel(Level.TRACE);
     // Turn the blocks per interval way down
     getConf().setInt(
@@ -1236,8 +1238,8 @@ public class TestDecommission extends AdminStatesBaseTest {
     final FileSystem fs = getCluster().getFileSystem();
     final DatanodeManager datanodeManager =
         getCluster().getNamesystem().getBlockManager().getDatanodeManager();
-    final DatanodeAdminManager decomManager =
-        datanodeManager.getDatanodeAdminManager();
+    final HDFSDatanodeAdminManager decomManager =
+        (HDFSDatanodeAdminManager)datanodeManager.getDatanodeAdminManager();
 
     // Write a 3 block file, so each node has one block. Should scan 3 nodes.
     DFSTestUtil.createFile(fs, new Path("/file1"), 64, (short) 3, 0xBAD1DEA);
@@ -1254,7 +1256,7 @@ public class TestDecommission extends AdminStatesBaseTest {
   }
 
   private void doDecomCheck(DatanodeManager datanodeManager,
-      DatanodeAdminManager decomManager, int expectedNumCheckedNodes)
+      HDFSDatanodeAdminManager decomManager, int expectedNumCheckedNodes)
       throws IOException, ExecutionException, InterruptedException {
     // Decom all nodes
     ArrayList<DatanodeInfo> decommissionedNodes = Lists.newArrayList();
@@ -1288,8 +1290,8 @@ public class TestDecommission extends AdminStatesBaseTest {
     startCluster(1, 2);
     final DatanodeManager datanodeManager =
         getCluster().getNamesystem().getBlockManager().getDatanodeManager();
-    final DatanodeAdminManager decomManager =
-        datanodeManager.getDatanodeAdminManager();
+    final HDFSDatanodeAdminManager decomManager =
+        (HDFSDatanodeAdminManager)datanodeManager.getDatanodeAdminManager();
 
     ArrayList<DatanodeInfo> decommissionedNodes = Lists.newArrayList();
     List<DataNode> dns = getCluster().getDataNodes();
@@ -1338,8 +1340,8 @@ public class TestDecommission extends AdminStatesBaseTest {
     final FileSystem fs = getCluster().getFileSystem();
     final DatanodeManager datanodeManager =
         getCluster().getNamesystem().getBlockManager().getDatanodeManager();
-    final DatanodeAdminManager decomManager =
-        datanodeManager.getDatanodeAdminManager();
+    final HDFSDatanodeAdminManager decomManager =
+        (HDFSDatanodeAdminManager)datanodeManager.getDatanodeAdminManager();
 
     // Keep a file open to prevent decom from progressing
     HdfsDataOutputStream open1 =
@@ -1375,7 +1377,7 @@ public class TestDecommission extends AdminStatesBaseTest {
     assertTrackedAndPending(decomManager, 1, 0);
   }
 
-  private void assertTrackedAndPending(DatanodeAdminManager decomManager,
+  private void assertTrackedAndPending(HDFSDatanodeAdminManager decomManager,
       int tracked, int pending) {
     assertEquals("Unexpected number of tracked nodes", tracked,
         decomManager.getNumTrackedNodes());

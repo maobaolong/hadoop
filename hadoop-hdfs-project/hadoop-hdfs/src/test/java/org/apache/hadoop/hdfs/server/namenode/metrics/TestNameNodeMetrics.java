@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Random;
 import com.google.common.collect.ImmutableList;
 
+import org.apache.hadoop.hdfs.server.blockmanagement.HDFSBlockManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -68,7 +69,6 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.protocol.LocatedStripedBlock;
 import org.apache.hadoop.hdfs.protocol.SystemErasureCodingPolicies;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManagerTestUtil;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor;
 import org.apache.hadoop.hdfs.server.common.Storage;
@@ -149,7 +149,7 @@ public class TestNameNodeMetrics {
   private final Random rand = new Random();
   private FSNamesystem namesystem;
   private HostsFileWriter hostsFileWriter;
-  private BlockManager bm;
+  private HDFSBlockManager bm;
   private Path ecDir;
 
   private static Path getTestPath(String fileName) {
@@ -164,7 +164,7 @@ public class TestNameNodeMetrics {
         .build();
     cluster.waitActive();
     namesystem = cluster.getNamesystem();
-    bm = namesystem.getBlockManager();
+    bm = (HDFSBlockManager)namesystem.getBlockManager();
     fs = cluster.getFileSystem();
     fs.enableErasureCodingPolicy(EC_POLICY.getName());
     ecDir = getTestPath("/ec");

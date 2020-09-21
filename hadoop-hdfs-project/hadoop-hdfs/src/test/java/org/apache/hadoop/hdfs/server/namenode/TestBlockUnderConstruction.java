@@ -39,6 +39,7 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockUnderConstructionFeature;
+import org.apache.hadoop.hdfs.server.blockmanagement.HDFSBlockManager;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.BlockUCState;
 import org.apache.hadoop.hdfs.server.protocol.NamenodeProtocols;
 import org.junit.AfterClass;
@@ -198,7 +199,7 @@ public class TestBlockUnderConstruction {
   public void testEmptyExpectedLocations() throws Exception {
     final NamenodeProtocols namenode = cluster.getNameNodeRpc();
     final FSNamesystem fsn = cluster.getNamesystem();
-    final BlockManager bm = fsn.getBlockManager();
+    final HDFSBlockManager bm = (HDFSBlockManager)fsn.getBlockManager();
     final Path p = new Path(BASE_DIR, "file2.dat");
     final String src = p.toString();
     final FSDataOutputStream out = TestFileCreation.createFile(hdfs, p, 1);

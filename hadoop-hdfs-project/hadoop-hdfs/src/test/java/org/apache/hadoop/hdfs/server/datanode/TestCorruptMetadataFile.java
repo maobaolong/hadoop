@@ -107,7 +107,7 @@ public class TestCorruptMetadataFile {
       @Override
       public Boolean get() {
         return cluster.getNameNode().getNamesystem()
-            .getBlockManager().getCorruptBlocks() == 1;
+            .getBlockManager().getCorruptReplicatedBlocks() == 1;
       }
     }, 100, 5000);
 

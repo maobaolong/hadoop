@@ -231,8 +231,8 @@ final class FSDirTruncateOp {
       newBlock = (shouldCopyOnTruncate) ?
           fsn.createNewBlock(BlockType.CONTIGUOUS)
           : new Block(oldBlock.getBlockId(), oldBlock.getNumBytes(),
-          fsn.nextGenerationStamp(fsn.getBlockManager().isLegacyBlock(
-              oldBlock)));
+          fsn.nextGenerationStamp(fsn.getBlockManager().getBlockIdManager()
+              .isLegacyBlock(oldBlock)));
     }
 
     final BlockInfo truncatedBlockUC;

@@ -555,10 +555,10 @@ public class TestReplicationPolicy extends BaseReplicationPolicyTest {
   public void testChooseTargetWithStaleNodes() throws Exception {
     // Set dataNodes[0] as stale
     DFSTestUtil.resetLastUpdatesWithOffset(dataNodes[0], -(staleInterval + 1));
-    namenode.getNamesystem().getBlockManager()
-      .getDatanodeManager().getHeartbeatManager().heartbeatCheck();
-    assertTrue(namenode.getNamesystem().getBlockManager()
-        .getDatanodeManager().shouldAvoidStaleDataNodesForWrite());
+    HDFSBlockManager bm =
+        (HDFSBlockManager)namenode.getNamesystem().getBlockManager();
+    bm.getDatanodeManager().getHeartbeatManager().heartbeatCheck();
+    assertTrue(bm.getDatanodeManager().shouldAvoidStaleDataNodesForWrite());
     DatanodeStorageInfo[] targets;
     // We set the datanode[0] as stale, thus should choose datanode[1] since
     // datanode[1] is on the same rack with datanode[0] (writer)
@@ -842,8 +842,9 @@ public class TestReplicationPolicy extends BaseReplicationPolicyTest {
         .format(true).build();
     try {
       cluster.waitActive();
-      final LowRedundancyBlocks neededReconstruction = cluster.getNameNode()
-          .getNamesystem().getBlockManager().neededReconstruction;
+      final LowRedundancyBlocks neededReconstruction =
+          ((HDFSBlockManager)cluster.getNameNode()
+          .getNamesystem().getBlockManager()).neededReconstruction;
       for (int i = 0; i < 100; i++) {
         // Adding the blocks directly to normal priority
 
@@ -1337,7 +1338,8 @@ public class TestReplicationPolicy extends BaseReplicationPolicyTest {
     FSNamesystem mockNS = mock(FSNamesystem.class);
     when(mockNS.hasWriteLock()).thenReturn(true);
     when(mockNS.hasReadLock()).thenReturn(true);
-    BlockManager bm = new BlockManager(mockNS, false, new HdfsConfiguration());
+    HDFSBlockManager bm =
+        new HDFSBlockManager(mockNS, false, new HdfsConfiguration());
     LowRedundancyBlocks lowRedundancyBlocks = bm.neededReconstruction;
 
     BlockInfo block1 = genBlockInfo(ThreadLocalRandom.current().nextLong());
@@ -1387,7 +1389,8 @@ public class TestReplicationPolicy extends BaseReplicationPolicyTest {
     Namesystem mockNS = mock(Namesystem.class);
     when(mockNS.hasWriteLock()).thenReturn(true);
 
-    BlockManager bm = new BlockManager(mockNS, false, new HdfsConfiguration());
+    HDFSBlockManager bm =
+        new HDFSBlockManager(mockNS, false, new HdfsConfiguration());
     LowRedundancyBlocks lowRedundancyBlocks = bm.neededReconstruction;
 
     long blkID1 = ThreadLocalRandom.current().nextLong();
@@ -1459,7 +1462,8 @@ public class TestReplicationPolicy extends BaseReplicationPolicyTest {
     Namesystem mockNS = mock(Namesystem.class);
     when(mockNS.hasReadLock()).thenReturn(true);
 
-    BlockManager bm = new BlockManager(mockNS, false, new HdfsConfiguration());
+    HDFSBlockManager bm =
+        new HDFSBlockManager(mockNS, false, new HdfsConfiguration());
     LowRedundancyBlocks lowRedundancyBlocks = bm.neededReconstruction;
 
     BlockInfo block1 = genBlockInfo(ThreadLocalRandom.current().nextLong());

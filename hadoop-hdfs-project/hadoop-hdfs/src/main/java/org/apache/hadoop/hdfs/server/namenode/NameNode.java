@@ -2103,8 +2103,8 @@ public class NameNode extends ReconfigurableBase implements
   @Override // ReconfigurableBase
   protected String reconfigurePropertyImpl(String property, String newVal)
       throws ReconfigurationException {
-    final DatanodeManager datanodeManager = namesystem.getBlockManager()
-        .getDatanodeManager();
+    final DatanodeManager datanodeManager =
+        (DatanodeManager)namesystem.getBlockManager().getDatanodeManager();
 
     if (property.equals(DFS_HEARTBEAT_INTERVAL_KEY)) {
       return reconfHeartbeatInterval(datanodeManager, property, newVal);
@@ -2135,28 +2135,7 @@ public class NameNode extends ReconfigurableBase implements
     int newSetting;
     namesystem.writeLock();
     try {
-      if (property.equals(DFS_NAMENODE_REPLICATION_MAX_STREAMS_KEY)) {
-        bm.setMaxReplicationStreams(
-            adjustNewVal(DFS_NAMENODE_REPLICATION_MAX_STREAMS_DEFAULT, newVal));
-        newSetting = bm.getMaxReplicationStreams();
-      } else if (property.equals(
-          DFS_NAMENODE_REPLICATION_STREAMS_HARD_LIMIT_KEY)) {
-        bm.setReplicationStreamsHardLimit(
-            adjustNewVal(DFS_NAMENODE_REPLICATION_STREAMS_HARD_LIMIT_DEFAULT,
-                newVal));
-        newSetting = bm.getReplicationStreamsHardLimit();
-      } else if (
-          property.equals(
-              DFS_NAMENODE_REPLICATION_WORK_MULTIPLIER_PER_ITERATION)) {
-        bm.setBlocksReplWorkMultiplier(
-            adjustNewVal(
-                DFS_NAMENODE_REPLICATION_WORK_MULTIPLIER_PER_ITERATION_DEFAULT,
-                newVal));
-        newSetting = bm.getBlocksReplWorkMultiplier();
-      } else {
-        throw new IllegalArgumentException("Unexpected property " +
-            property + "in reconfReplicationParameters");
-      }
+      newSetting = (Integer)bm.setProperty(property, newVal);
       LOG.info("RECONFIGURE* changed {} to {}", property, newSetting);
       return String.valueOf(newSetting);
     } catch (IllegalArgumentException e) {
@@ -2164,14 +2143,6 @@ public class NameNode extends ReconfigurableBase implements
           property), e);
     } finally {
       namesystem.writeUnlock();
-    }
-  }
-
-  private int adjustNewVal(int defaultVal, String newVal) {
-    if (newVal == null) {
-      return defaultVal;
-    } else {
-      return Integer.parseInt(newVal);
     }
   }
 

@@ -281,7 +281,7 @@ public class NamenodeFsck implements DataEncryptionKeyFactory {
       out.println("Block Id: " + blockId);
       out.println("Block belongs to: "+iNode.getFullPathName());
       out.println("No. of Expected Replica: " +
-          blockManager.getExpectedRedundancyNum(blockInfo));
+          BlockManager.getExpectedRedundancyNum(blockInfo));
       out.println("No. of live Replica: " + numberReplicas.liveReplicas());
       out.println("No. of excess Replica: " + numberReplicas.excessReplicas());
       out.println("No. of stale Replica: " +

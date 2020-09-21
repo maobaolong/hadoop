@@ -120,7 +120,7 @@ public class TestHostFileManager {
 
     hm.refresh(includedNodes, excludedNodes);
 
-    DatanodeManager dm = new DatanodeManager(bm, fsn, conf);
+    DatanodeManager dm = new HDFSDatanodeManager(bm, fsn, conf);
     Whitebox.setInternalState(dm, "hostConfigManager", hm);
     Map<String, DatanodeDescriptor> dnMap = (Map<String,
             DatanodeDescriptor>) Whitebox.getInternalState(dm, "datanodeMap");
