@@ -155,8 +155,12 @@ public final class PBImageXmlWriter {
   public static final String INODE_SECTION_PERMISSION = "permission";
   public static final String INODE_SECTION_BLOCKS = "blocks";
   public static final String INODE_SECTION_BLOCK = "block";
+  public static final String INODE_SECTION_CONTAINER_ID = "containerId";
+  public static final String INODE_SECTION_LOCAL_ID = "localId";
   public static final String INODE_SECTION_GENSTAMP = "genstamp";
   public static final String INODE_SECTION_NUM_BYTES = "numBytes";
+  public static final String INODE_SECTION_LENGTH = "length";
+  public static final String INODE_SECTION_OFFSET = "offset";
   public static final String INODE_SECTION_FILE_UNDER_CONSTRUCTION =
       "file-under-construction";
   public static final String INODE_SECTION_CLIENT_NAME = "clientName";
@@ -527,13 +531,14 @@ public final class PBImageXmlWriter {
       dumpXattrs(f.getXAttrs());
     }
     dumpAcls(f.getAcl());
-    if (f.getBlocksCount() > 0) {
+    if (f.getHddsBlocksCount() > 0) {
       out.print("<" + INODE_SECTION_BLOCKS + ">");
-      for (BlockProto b : f.getBlocksList()) {
+      for (HdfsProtos.HDDSServerLocationInfoProto b : f.getHddsBlocksList()) {
         out.print("<" + INODE_SECTION_BLOCK + ">");
-        o(SECTION_ID, b.getBlockId())
-            .o(INODE_SECTION_GENSTAMP, b.getGenStamp())
-            .o(INODE_SECTION_NUM_BYTES, b.getNumBytes());
+        o(INODE_SECTION_CONTAINER_ID, b.getContainerId())
+            .o(INODE_SECTION_LOCAL_ID, b.getLocalId())
+            .o(INODE_SECTION_LENGTH, b.getLength())
+            .o(INODE_SECTION_OFFSET, b.getOffset());
         out.print("</" + INODE_SECTION_BLOCK + ">\n");
       }
       out.print("</" + INODE_SECTION_BLOCKS + ">\n");

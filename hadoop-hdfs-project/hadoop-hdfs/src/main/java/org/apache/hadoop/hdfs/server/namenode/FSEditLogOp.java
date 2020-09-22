@@ -100,6 +100,7 @@ import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.fs.StorageType;
+import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DeprecatedUTF8;
 import org.apache.hadoop.hdfs.protocol.Block;
@@ -757,10 +758,9 @@ public abstract class FSEditLogOp {
       XMLUtils.addSaxString(contentHandler, "CLIENT_MACHINE", clientMachine);
       XMLUtils.addSaxString(contentHandler, "OVERWRITE", 
           Boolean.toString(overwrite));
-      // TODO(baoloongmao): fix to hdds block later
-//      for (Block b : blocks) {
-//        FSEditLogOp.blockToXml(contentHandler, b);
-//      }
+      for (HDDSServerLocationInfo b : blocks) {
+        FSEditLogOp.blockToXml(contentHandler, b);
+      }
       FSEditLogOp.permissionStatusToXml(contentHandler, permissions);
       if (this.opCode == OP_ADD) {
         if (aclEntries != null) {
@@ -787,11 +787,10 @@ public abstract class FSEditLogOp {
       this.overwrite = Boolean.parseBoolean(st.getValueOrNull("OVERWRITE"));
       if (st.hasChildren("BLOCK")) {
         List<Stanza> blocks = st.getChildren("BLOCK");
-        // TODO(baoloongmao): fix to hdds block later
-//        this.blocks = new Block[blocks.size()];
-//        for (int i = 0; i < blocks.size(); i++) {
-//          this.blocks[i] = FSEditLogOp.blockFromXml(blocks.get(i));
-//        }
+        this.blocks = new HDDSServerLocationInfo[blocks.size()];
+        for (int i = 0; i < blocks.size(); i++) {
+          this.blocks[i] = FSEditLogOp.blockFromXml(blocks.get(i));
+        }
       } else {
         this.blocks = new HDDSServerLocationInfo[0];
       }
@@ -1040,11 +1039,10 @@ public abstract class FSEditLogOp {
     @Override
     protected void toXml(ContentHandler contentHandler) throws SAXException {
       XMLUtils.addSaxString(contentHandler, "PATH", path);
-      // TODO(baoloongmao): fix the xml
-//      if (penultimateBlock != null) {
-//        FSEditLogOp.blockToXml(contentHandler, penultimateBlock);
-//      }
-//      FSEditLogOp.blockToXml(contentHandler, lastBlock);
+      if (penultimateBlock != null) {
+        FSEditLogOp.blockToXml(contentHandler, penultimateBlock);
+      }
+      FSEditLogOp.blockToXml(contentHandler, lastBlock);
       appendRpcIdsToXml(contentHandler, rpcClientId, rpcCallId);
     }
     
@@ -1054,10 +1052,9 @@ public abstract class FSEditLogOp {
       List<Stanza> blocks = st.getChildren("BLOCK");
       int size = blocks.size();
       Preconditions.checkState(size == 1 || size == 2);
-      // TODO(baoloongmao): fix the from/to xml
-//      this.penultimateBlock = size == 2 ?
-//          FSEditLogOp.blockFromXml(blocks.get(0)) : null;
-//      this.lastBlock = FSEditLogOp.blockFromXml(blocks.get(size - 1));
+      this.penultimateBlock = size == 2 ?
+          FSEditLogOp.blockFromXml(blocks.get(0)) : null;
+      this.lastBlock = FSEditLogOp.blockFromXml(blocks.get(size - 1));
       readRpcIdsFromXml(st);
     }
   }
@@ -1143,10 +1140,9 @@ public abstract class FSEditLogOp {
     @Override
     protected void toXml(ContentHandler contentHandler) throws SAXException {
       XMLUtils.addSaxString(contentHandler, "PATH", path);
-      // TODO(baoloongmao): fix this later.
-//      for (Block b : blocks) {
-//        FSEditLogOp.blockToXml(contentHandler, b);
-//      }
+      for (HDDSServerLocationInfo b : blocks) {
+        FSEditLogOp.blockToXml(contentHandler, b);
+      }
       appendRpcIdsToXml(contentHandler, rpcClientId, rpcCallId);
     }
     
@@ -1154,11 +1150,10 @@ public abstract class FSEditLogOp {
       this.path = st.getValue("PATH");
       List<Stanza> blocks = st.hasChildren("BLOCK") ?
           st.getChildren("BLOCK") : new ArrayList<Stanza>();
-      // TODO(baoloongmao): fix this later.
-//      this.blocks = new Block[blocks.size()];
-//      for (int i = 0; i < blocks.size(); i++) {
-//        this.blocks[i] = FSEditLogOp.blockFromXml(blocks.get(i));
-//      }
+      this.blocks = new HDDSServerLocationInfo[blocks.size()];
+      for (int i = 0; i < blocks.size(); i++) {
+        this.blocks[i] = FSEditLogOp.blockFromXml(blocks.get(i));
+      }
       readRpcIdsFromXml(st);
     }
   }
@@ -2919,12 +2914,13 @@ public abstract class FSEditLogOp {
       XMLUtils.addSaxString(contentHandler, "SRC", src);
       XMLUtils.addSaxString(contentHandler, "CLIENTNAME", clientName);
       XMLUtils.addSaxString(contentHandler, "CLIENTMACHINE", clientMachine);
-      XMLUtils.addSaxString(contentHandler, "NEWLENGTH",
-          Long.toString(newLength));
-      XMLUtils.addSaxString(contentHandler, "TIMESTAMP",
-          Long.toString(timestamp));
-      if(truncateBlock != null)
-        FSEditLogOp.blockToXml(contentHandler, truncateBlock);
+      // TODO(runzhiwang): truncate
+//      XMLUtils.addSaxString(contentHandler, "NEWLENGTH",
+//          Long.toString(newLength));
+//      XMLUtils.addSaxString(contentHandler, "TIMESTAMP",
+//          Long.toString(timestamp));
+//      if(truncateBlock != null)
+//        FSEditLogOp.blockToXml(contentHandler, truncateBlock);
     }
 
     @Override
@@ -2932,10 +2928,11 @@ public abstract class FSEditLogOp {
       this.src = st.getValue("SRC");
       this.clientName = st.getValue("CLIENTNAME");
       this.clientMachine = st.getValue("CLIENTMACHINE");
-      this.newLength = Long.parseLong(st.getValue("NEWLENGTH"));
-      this.timestamp = Long.parseLong(st.getValue("TIMESTAMP"));
-      if (st.hasChildren("BLOCK"))
-        this.truncateBlock = FSEditLogOp.blockFromXml(st);
+      // TODO(runzhiwang): truncate
+//      this.newLength = Long.parseLong(st.getValue("NEWLENGTH"));
+//      this.timestamp = Long.parseLong(st.getValue("TIMESTAMP"));
+//      if (st.hasChildren("BLOCK"))
+//        this.truncateBlock = FSEditLogOp.blockFromXml(st);
     }
 
     @Override
@@ -5314,24 +5311,31 @@ public abstract class FSEditLogOp {
     fromXml(st);
   }
   
-  public static void blockToXml(ContentHandler contentHandler, Block block) 
+  public static void blockToXml(ContentHandler contentHandler, HDDSServerLocationInfo block)
       throws SAXException {
     contentHandler.startElement("", "", "BLOCK", new AttributesImpl());
-    XMLUtils.addSaxString(contentHandler, "BLOCK_ID",
-        Long.toString(block.getBlockId()));
-    XMLUtils.addSaxString(contentHandler, "NUM_BYTES",
-        Long.toString(block.getNumBytes()));
-    XMLUtils.addSaxString(contentHandler, "GENSTAMP",
-        Long.toString(block.getGenerationStamp()));
+    XMLUtils.addSaxString(contentHandler, "CONTAINER_ID",
+        Long.toString(block.getContainerID()));
+    XMLUtils.addSaxString(contentHandler, "LOCAL_ID",
+        Long.toString(block.getLocalID()));
+    XMLUtils.addSaxString(contentHandler, "LENGTH",
+        Long.toString(block.getLength()));
+    XMLUtils.addSaxString(contentHandler, "OFFSET",
+        Long.toString(block.getOffset()));
     contentHandler.endElement("", "", "BLOCK");
   }
 
-  public static Block blockFromXml(Stanza st)
+  public static HDDSServerLocationInfo blockFromXml(Stanza st)
       throws InvalidXmlException {
-    long blockId = Long.parseLong(st.getValue("BLOCK_ID"));
-    long numBytes = Long.parseLong(st.getValue("NUM_BYTES"));
-    long generationStamp = Long.parseLong(st.getValue("GENSTAMP"));
-    return new Block(blockId, numBytes, generationStamp);
+    long containerId = Long.parseLong(st.getValue("CONTAINER_ID"));
+    long localId = Long.parseLong(st.getValue("LOCAL_ID"));
+    long length = Long.parseLong(st.getValue("LENGTH"));
+    long offset = Long.parseLong(st.getValue("OFFSET"));
+    return new HDDSServerLocationInfo.Builder()
+        .setBlockID(new BlockID(containerId, localId))
+        .setLength(length)
+        .setOffset(offset)
+        .build();
   }
 
   public static void delegationTokenToXml(ContentHandler contentHandler,
