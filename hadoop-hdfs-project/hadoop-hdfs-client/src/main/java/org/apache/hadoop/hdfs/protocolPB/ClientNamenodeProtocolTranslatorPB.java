@@ -51,7 +51,9 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.ha.HAServiceProtocol;
 import org.apache.hadoop.ha.proto.HAServiceProtocolProtos.HAServiceStateProto;
 import org.apache.hadoop.hdds.HDDSFileStatus;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.GetHDDSBlockLocationsResponseProto;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.GetHDDSListingResponseProto;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.AddBlockFlag;
@@ -2090,4 +2092,24 @@ public class ClientNamenodeProtocolTranslatorPB implements
     }
   }
 
+  @Override
+  public HDDSLocatedBlocks getHDDSBlockLocations(String src,
+      long offset,
+      long length)
+      throws IOException {
+    GetBlockLocationsRequestProto req = GetBlockLocationsRequestProto
+        .newBuilder()
+        .setSrc(src)
+        .setOffset(offset)
+        .setLength(length)
+        .build();
+    try {
+      GetHDDSBlockLocationsResponseProto resp = rpcProxy.getHDDSBlockLocations(null,
+          req);
+      return resp.hasLocations() ?
+          PBHelperClient.convert(resp.getLocations()) : null;
+    } catch (ServiceException e) {
+      throw ProtobufHelper.getRemoteException(e);
+    }
+  }
 }

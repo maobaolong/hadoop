@@ -92,8 +92,8 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LI
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LISTING_LIMIT_DEFAULT;
 
 import org.apache.hadoop.hdds.HDDSFileStatus;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
-import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_STORAGE_POLICY_ENABLED_KEY;
@@ -8343,6 +8343,100 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
           + " is closed by " + holder);
     }
     return success;
+  }
+
+  HDDSLocatedBlocks getHDDSBlockLocations(String clientMachine, String srcArg,
+      long offset, long length) throws IOException {
+    final String operationName = "open";
+    checkOperation(OperationCategory.READ);
+    GetHDDSBlockLocationsResult res = null;
+    final FSPermissionChecker pc = getPermissionChecker();
+    readLock();
+    try {
+      checkOperation(OperationCategory.READ);
+      res = FSDirStatAndListingOp.getHDDSBlockLocations(
+          dir, pc, srcArg, offset, length, true);
+      if (isInSafeMode()) {
+        for (HDDSLocationInfo b : res.blocks.getLocatedBlocks()) {
+          // if safemode & no block locations yet then throw safemodeException
+          if ((b.getDatanodeDetails() == null) || (b.getDatanodeDetails().size() == 0)) {
+            SafeModeException se = newSafemodeException(
+                "Zero blocklocations for " + srcArg);
+            if (haEnabled && haContext != null &&
+                (haContext.getState().getServiceState() == ACTIVE ||
+                    haContext.getState().getServiceState() == OBSERVER)) {
+              throw new RetriableException(se);
+            } else {
+              throw se;
+            }
+          }
+        }
+      } else if (haEnabled && haContext != null &&
+          haContext.getState().getServiceState() == OBSERVER) {
+        for (HDDSLocationInfo b : res.blocks.getLocatedBlocks()) {
+          if (b.getDatanodeDetails() == null || b.getDatanodeDetails().size() == 0) {
+            throw new ObserverRetryOnActiveException("Zero blocklocations for "
+                + srcArg);
+          }
+        }
+      }
+    } catch (AccessControlException e) {
+      logAuditEvent(false, operationName, srcArg);
+      throw e;
+    } finally {
+      readUnlock(operationName);
+    }
+
+    logAuditEvent(true, operationName, srcArg);
+
+    if (!isInSafeMode() && res.updateAccessTime()) {
+      String src = srcArg;
+      checkOperation(OperationCategory.WRITE);
+      writeLock();
+      final long now = now();
+      try {
+        checkOperation(OperationCategory.WRITE);
+        /**
+         * Resolve the path again and update the atime only when the file
+         * exists.
+         *
+         * XXX: Races can still occur even after resolving the path again.
+         * For example:
+         *
+         * <ul>
+         *   <li>Get the block location for "/a/b"</li>
+         *   <li>Rename "/a/b" to "/c/b"</li>
+         *   <li>The second resolution still points to "/a/b", which is
+         *   wrong.</li>
+         * </ul>
+         *
+         * The behavior is incorrect but consistent with the one before
+         * HDFS-7463. A better fix is to change the edit log of SetTime to
+         * use inode id instead of a path.
+         */
+        final INodesInPath iip = dir.resolvePath(pc, srcArg, DirOp.READ);
+        src = iip.getPath();
+
+        INode inode = iip.getLastINode();
+        boolean updateAccessTime = inode != null &&
+            now > inode.getAccessTime() + dir.getAccessTimePrecision();
+        if (!isInSafeMode() && updateAccessTime) {
+          boolean changed = FSDirAttrOp.setTimes(dir, iip, -1, now, false);
+          if (changed) {
+            getEditLog().logTimes(src, -1, now);
+          }
+        }
+      } catch (Throwable e) {
+        LOG.warn("Failed to update the access time of " + src, e);
+      } finally {
+        writeUnlock(operationName);
+      }
+    }
+
+    HDDSLocatedBlocks blocks = res.blocks;
+    // TODO(baoloongmao): open this after a discussion
+//    sortLocatedBlocks(clientMachine, blocks);
+    return blocks;
   }
 }
 

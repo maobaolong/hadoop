@@ -1,6 +1,8 @@
 package org.apache.hadoop.hdfs.server.blockmanagement.hddsblockmanager;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileEncryptionInfo;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -12,7 +14,9 @@ import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.scm.protocol.ScmBlockLocationProtocol;
 import org.apache.hadoop.hdds.scm.protocol.ScmClient;
 import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
+import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
+import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
+import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.ozone.common.BlockGroup;
 import org.slf4j.Logger;
@@ -30,7 +34,6 @@ public class HDDSBlockManager {
   public static final Logger LOG = LoggerFactory.getLogger(HDDSBlockManager.class);
   private final ScmClient scmClient;
   private final FSNamesystem namesystem;
-  private final BlockStoragePolicySuite storagePolicySuite;
 
   public HDDSBlockManager(final FSNamesystem namesystem, boolean haEnabled,
       final Configuration conf) throws IOException {
@@ -41,11 +44,6 @@ public class HDDSBlockManager {
         ScmClient.getScmContainerClient(o3Conf);
     this.namesystem = namesystem;
     this.scmClient = new ScmClient(scmBlockClient, scmContainerClient);
-    storagePolicySuite = BlockStoragePolicySuite.createDefaultSuite();
-  }
-
-  public ScmClient getScmClient() {
-    return scmClient;
   }
 
   public String getBlockPoolId() {
@@ -134,6 +132,91 @@ public class HDDSBlockManager {
   }
 
   public void clear() {
+  }
 
+  public HDDSLocatedBlocks createLocatedBlocks(
+      final HDDSServerLocationInfo[] blocks,
+      final long fileSizeExcludeBlocksUnderConstruction,
+      final boolean isFileUnderConstruction, final long offset,
+      final long length, final boolean needBlockToken,
+      final boolean inSnapshot, FileEncryptionInfo feInfo,
+      ErasureCodingPolicy ecPolicy)
+      throws IOException {
+    assert namesystem.hasReadLock();
+    if (blocks == null) {
+      return null;
+    } else if (blocks.length == 0) {
+      return new HDDSLocatedBlocks(0L, isFileUnderConstruction,
+          Collections.emptyList(), null, false, feInfo, ecPolicy);
+    } else {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("blocks = {}", java.util.Arrays.asList(blocks));
+      }
+      final BlockTokenIdentifier.AccessMode
+          mode = needBlockToken? BlockTokenIdentifier.AccessMode.READ: null;
+
+      HDDSLocatedBlockBuilder locatedBlocks =
+          new HDDSLocatedBlockBuilder(Integer.MAX_VALUE)
+              .fileLength(fileSizeExcludeBlocksUnderConstruction)
+              .lastUC(isFileUnderConstruction)
+              .encryption(feInfo)
+              .erasureCoding(ecPolicy);
+
+      createLocatedBlockList(locatedBlocks, blocks, offset, length, mode);
+      // TODO(baoloongmao): handle last block correctly.
+      HDDSLocatedBlocks locations = locatedBlocks.build();
+      // Set caching information for the located blocks.
+      // TODO(baoloongmao): open cache when we plan to use it.
+      return locations;
+    }
+  }
+
+  private void createLocatedBlockList(
+      HDDSLocatedBlockBuilder locatedBlocks,
+      final HDDSServerLocationInfo[] blocks,
+      final long offset, final long length,
+      final BlockTokenIdentifier.AccessMode mode) throws IOException {
+    int curBlk;
+    long curPos = 0, blkSize = 0;
+    int nrBlocks = (blocks[0].getLength() == 0) ? 0 : blocks.length;
+    for (curBlk = 0; curBlk < nrBlocks; curBlk++) {
+      blkSize = blocks[curBlk].getLength();
+      assert blkSize > 0 : "Block of size 0";
+      if (curPos + blkSize > offset) {
+        break;
+      }
+      curPos += blkSize;
+    }
+
+    if (nrBlocks > 0 && curBlk == nrBlocks)   // offset >= end of file
+      return;
+
+    long endOff = offset + length;
+    do {
+      locatedBlocks.addBlock(
+          createLocatedBlock(locatedBlocks, blocks[curBlk], curPos, mode));
+      curPos += blocks[curBlk].getLength();
+      curBlk++;
+    } while (curPos < endOff
+        && curBlk < blocks.length
+        && !locatedBlocks.isBlockMax());
+    return;
+  }
+
+  private HDDSLocationInfo createLocatedBlock(HDDSLocatedBlockBuilder locatedBlocks,
+      final HDDSServerLocationInfo blk, final long pos, final BlockTokenIdentifier.AccessMode mode)
+      throws IOException {
+    // TODO(baoloongmao): open block token until necessary
+    HDDSLocationInfo locationInfo = null;
+    if (blk != null) {
+      locationInfo = new HDDSLocationInfo.Builder()
+          .setBlockID(blk.getBlockID())
+          .setPipeline(blk.getPipeline())
+          .setLength(blk.getLength())
+          .setOffset(blk.getOffset())
+          .setToken(blk.getToken())
+          .build();
+    }
+    return locationInfo;
   }
 }

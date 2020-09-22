@@ -29,6 +29,7 @@ import org.apache.hadoop.fs.BatchedRemoteIterator.BatchedEntries;
 import org.apache.hadoop.fs.PathIsNotEmptyDirectoryException;
 import org.apache.hadoop.ha.HAServiceProtocol;
 import org.apache.hadoop.hdds.HDDSFileStatus;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.AddBlockFlag;
@@ -1850,6 +1851,12 @@ public interface ClientProtocol {
   @ReadOnly(isCoordinated = true)
   default DirectoryListing getHDDSListing(String src, byte[] startAfter,
       boolean needLocation) throws IOException {
+    return null;
+  }
+
+  default HDDSLocatedBlocks getHDDSBlockLocations(String src,
+      long offset,
+      long length) throws IOException {
     return null;
   }
 }

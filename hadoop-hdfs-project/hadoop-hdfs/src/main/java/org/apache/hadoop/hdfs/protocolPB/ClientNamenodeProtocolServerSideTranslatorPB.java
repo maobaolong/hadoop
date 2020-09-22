@@ -34,8 +34,10 @@ import org.apache.hadoop.ha.HAServiceProtocol;
 import org.apache.hadoop.ha.proto.HAServiceProtocolProtos;
 import org.apache.hadoop.ha.proto.HAServiceProtocolProtos.HAServiceStateProto;
 import org.apache.hadoop.hdds.HDDSFileStatus;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.GetHDDSBlockLocationsResponseProto;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.GetHDDSListingResponseProto;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.AddBlockFlag;
@@ -2035,6 +2037,24 @@ public class ClientNamenodeProtocolServerSideTranslatorPB implements
       } else {
         return VOID_GETHDDSLISTING_RESPONSE;
       }
+    } catch (IOException e) {
+      throw new ServiceException(e);
+    }
+  }
+
+  @Override
+  public GetHDDSBlockLocationsResponseProto getHDDSBlockLocations(
+      RpcController controller, GetBlockLocationsRequestProto req)
+      throws ServiceException {
+    try {
+      HDDSLocatedBlocks b = server.getHDDSBlockLocations(req.getSrc(), req.getOffset(),
+          req.getLength());
+      GetHDDSBlockLocationsResponseProto.Builder builder = GetHDDSBlockLocationsResponseProto
+          .newBuilder();
+      if (b != null) {
+        builder.setLocations(PBHelperClient.convert(b)).build();
+      }
+      return builder.build();
     } catch (IOException e) {
       throw new ServiceException(e);
     }

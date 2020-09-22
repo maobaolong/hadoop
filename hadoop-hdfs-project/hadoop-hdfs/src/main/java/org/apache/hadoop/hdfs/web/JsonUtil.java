@@ -31,6 +31,8 @@ import org.apache.hadoop.fs.XAttrCodec;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.AclStatus;
 import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
+import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdfs.DFSUtilClient;
 import org.apache.hadoop.hdfs.XAttrHelper;
 import org.apache.hadoop.hdfs.protocol.*;
@@ -43,7 +45,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 /** JSON Utilities */
 public class JsonUtil {
@@ -344,6 +350,24 @@ public class JsonUtil {
     return toJsonString(LocatedBlocks.class, m);
   }
 
+  /** Convert LocatedBlocks to a Json string. */
+  public static String toJsonString(final HDDSLocatedBlocks locatedblocks
+  ) throws IOException {
+    if (locatedblocks == null) {
+      return null;
+    }
+
+    final Map<String, Object> m = new TreeMap<String, Object>();
+    m.put("fileLength", locatedblocks.getFileLength());
+    m.put("isUnderConstruction", locatedblocks.isUnderConstruction());
+
+    m.put("locatedBlocks", toHDDSLocationInfoJsonArray(
+        locatedblocks.getLocatedBlocks()));
+    m.put("lastLocatedBlock", toJsonMap(locatedblocks.getLastLocatedBlock()));
+    m.put("isLastBlockComplete", locatedblocks.isLastBlockComplete());
+    return toJsonString(LocatedBlocks.class, m);
+  }
+
   /** Convert a ContentSummary to a Json string. */
   public static String toJsonString(final ContentSummary contentsummary) {
     if (contentsummary == null) {
@@ -623,5 +647,48 @@ public class JsonUtil {
     }
     m.put(BlockLocation.class.getSimpleName(), blockLocations);
     return toJsonString("BlockLocations", m);
+  }
+
+  /** Convert a LocatedBlock[] to a Json array. */
+  private static Object[] toHDDSLocationInfoJsonArray(
+      final List<HDDSLocationInfo> array) throws IOException {
+    if (array == null) {
+      return null;
+    } else if (array.size() == 0) {
+      return EMPTY_OBJECT_ARRAY;
+    } else {
+      final Object[] a = new Object[array.size()];
+      for(int i = 0; i < array.size(); i++) {
+        a[i] = toJsonMap(array.get(i));
+      }
+      return a;
+    }
+  }
+
+  /** Convert a LocatedBlock to a Json map. */
+  private static Map<String, Object> toJsonMap(
+      final HDDSLocationInfo locatedblock) throws IOException {
+    if (locatedblock == null) {
+      return null;
+    }
+
+    final Map<String, Object> m = new TreeMap<String, Object>();
+    m.put("isCorrupt", false);
+    m.put("startOffset", locatedblock.getOffset());
+    m.put("block", toBlockJsonMap(locatedblock));
+    m.put("locations", toJsonArray(locatedblock.getLocations()));
+    return m;
+  }
+
+  /** Convert an ExtendedBlock to a Json map. */
+  private static Map<String, Object> toBlockJsonMap(final HDDSLocationInfo extendedblock) {
+    if (extendedblock == null) {
+      return null;
+    }
+
+    final Map<String, Object> m = new TreeMap<String, Object>();
+    m.put("blockId", extendedblock.getBlockId());
+    m.put("numBytes", extendedblock.getLength());
+    return m;
   }
 }

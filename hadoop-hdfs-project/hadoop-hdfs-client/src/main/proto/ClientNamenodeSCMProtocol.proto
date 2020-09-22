@@ -150,3 +150,7 @@ message HDDSDirectoryListingProto {
 message GetHDDSListingResponseProto {
     optional HDDSDirectoryListingProto dirList = 1;
 }
+
+message GetHDDSBlockLocationsResponseProto {
+    optional HDDSLocatedBlocksProto locations = 1;
+}

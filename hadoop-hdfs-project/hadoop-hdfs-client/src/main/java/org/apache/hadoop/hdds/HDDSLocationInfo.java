@@ -16,13 +16,20 @@
  */
 package org.apache.hadoop.hdds;
 
+import com.fasterxml.jackson.annotation.JsonGetter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.hadoop.hdds.client.BlockID;
+import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.UnknownPipelineStateException;
 import org.apache.hadoop.hdds.security.token.OzoneBlockTokenIdentifier;
+import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
 import org.apache.hadoop.security.token.Token;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -30,6 +37,7 @@ import java.util.Objects;
  * into a number of subkeys. This class represents one such subkey instance.
  */
 public final class HDDSLocationInfo {
+  @JsonProperty("blockId")
   private final BlockID blockID;
   // the id of this subkey in all the subkeys.
   private long length;
@@ -39,6 +47,7 @@ public final class HDDSLocationInfo {
   // the version number indicating when this block was added
   private long createVersion;
 
+  @JsonIgnore
   private Pipeline pipeline;
 
   private HDDSLocationInfo(BlockID blockID, Pipeline pipeline, long length,
@@ -78,6 +87,7 @@ public final class HDDSLocationInfo {
     return blockID.getLocalID();
   }
 
+  @JsonIgnore
   public Pipeline getPipeline() {
     return pipeline;
   }
@@ -155,6 +165,7 @@ public final class HDDSLocationInfo {
     }
   }
 
+  @JsonIgnore
   public ClientNamenodeSCMProtocolProtos.HddsLocation getProtobuf() {
     ClientNamenodeSCMProtocolProtos.HddsLocation.Builder builder = ClientNamenodeSCMProtocolProtos.HddsLocation
         .newBuilder()
@@ -230,5 +241,32 @@ public final class HDDSLocationInfo {
   public int hashCode() {
     return Objects.hash(blockID, length, offset, token, createVersion,
         pipeline);
+  }
+
+  @JsonIgnore
+  public List<DatanodeDetails> getDatanodeDetails() {
+    if (getPipeline() == null) {
+      return Collections.emptyList();
+    }
+    return getPipeline().getNodes();
+  }
+
+  public DatanodeInfo[] getLocations() {
+    List<DatanodeDetails> dnList = getDatanodeDetails();
+    DatanodeInfo[] datanodeInfos = new DatanodeInfo[dnList.size()];
+    for (int i = 0; i < dnList.size(); i++) {
+      DatanodeDetails dn  = dnList.get(i);
+      datanodeInfos[i] = new DatanodeInfo.DatanodeInfoBuilder()
+          .setHostName(dn.getHostName())
+          .setDatanodeUuid(dn.getUuidString())
+          .setIpAddr(dn.getIpAddress())
+          .build();
+    }
+    return datanodeInfos;
+  }
+
+  @JsonGetter("blockId")
+  public String getBlockId() {
+    return blockID.toString();
   }
 }

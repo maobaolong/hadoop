@@ -56,6 +56,7 @@ import javax.ws.rs.core.Response.ResponseBuilder;
 import javax.ws.rs.core.Response.Status;
 
 import org.apache.hadoop.fs.QuotaUsage;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -319,7 +320,8 @@ public class NamenodeWebHdfsMethods {
 
       if (len > 0) {
         final long offset = op == GetOpParam.Op.OPEN? openOffset: len - 1;
-        final LocatedBlocks locations = np.getBlockLocations(path, offset, 1);
+        final HDDSLocatedBlocks
+            locations = np.getHDDSBlockLocations(path, offset, 1);
         final int count = locations.locatedBlockCount();
         if (count > 0) {
           return bestNode(locations.get(0).getLocations(), excludes);
@@ -1133,7 +1135,7 @@ public class NamenodeWebHdfsMethods {
     {
       final long offsetValue = offset.getValue();
       final Long lengthValue = length.getValue();
-      final LocatedBlocks locatedblocks = cp.getBlockLocations(fullpath,
+      final HDDSLocatedBlocks locatedblocks = cp.getHDDSBlockLocations(fullpath,
           offsetValue, lengthValue != null? lengthValue: Long.MAX_VALUE);
       final String js = JsonUtil.toJsonString(locatedblocks);
       return Response.ok(js).type(MediaType.APPLICATION_JSON).build();

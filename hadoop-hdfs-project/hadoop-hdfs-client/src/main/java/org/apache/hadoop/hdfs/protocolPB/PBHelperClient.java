@@ -3560,7 +3560,7 @@ public class PBHelperClient {
     return builder.build();
   }
 
-  private static HDDSLocatedBlocksProto convert(HDDSLocatedBlocks lb) {
+  public static HDDSLocatedBlocksProto convert(HDDSLocatedBlocks lb) {
     if (lb == null) {
       return null;
     }

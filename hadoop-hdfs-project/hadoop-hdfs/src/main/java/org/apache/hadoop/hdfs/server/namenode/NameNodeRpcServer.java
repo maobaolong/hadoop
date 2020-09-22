@@ -52,6 +52,7 @@ import org.apache.hadoop.conf.ReconfigurationTaskStatus;
 import org.apache.hadoop.crypto.CryptoProtocolVersion;
 import org.apache.hadoop.fs.BatchedRemoteIterator.BatchedEntries;
 import org.apache.hadoop.hdds.HDDSFileStatus;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
 import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.AddBlockFlag;
@@ -2650,5 +2651,17 @@ public class NameNodeRpcServer implements NamenodeProtocols {
     checkNNStartup();
     namesystem.completeHDDSFile(src, clientName, last, fileId);
     return true;
+  }
+
+  @Override
+  public HDDSLocatedBlocks getHDDSBlockLocations(String src,
+      long offset,
+      long length)
+      throws IOException {
+    checkNNStartup();
+    metrics.incrGetBlockLocations();
+    HDDSLocatedBlocks locatedBlocks =
+        namesystem.getHDDSBlockLocations(getClientMachine(), src, offset, length);
+    return locatedBlocks;
   }
 }

@@ -18,6 +18,7 @@
 package org.apache.hadoop.hdfs.server.namenode;
 
 import org.apache.hadoop.hdds.HDDSFileStatus;
+import org.apache.hadoop.hdfs.server.blockmanagement.hddsblockmanager.HDDSBlockManager;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.util.StringUtils;
 
@@ -2006,4 +2007,7 @@ public class FSDirectory implements Closeable {
     return nodeAttrs;
   }
 
+  HDDSBlockManager getHDDSBlockManager() {
+    return getFSNamesystem().getHDDSBlockManager();
+  }
 }
