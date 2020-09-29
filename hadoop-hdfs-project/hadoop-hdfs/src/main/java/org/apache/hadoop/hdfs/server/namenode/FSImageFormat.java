@@ -761,7 +761,7 @@ public class FSImageFormat {
       // file
 
       // read blocks
-      HddsBlockInfo[] blocks = new HddsBlockInfo[numBlocks];
+      BlockInfo[] blocks = new BlockInfo[numBlocks];
       for (int j = 0; j < numBlocks; j++) {
         blocks[j] = new HddsBlockInfo();
         blocks[j].readFields(in);

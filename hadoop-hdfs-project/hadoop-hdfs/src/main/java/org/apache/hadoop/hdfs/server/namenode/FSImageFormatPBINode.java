@@ -317,7 +317,7 @@ public final class FSImageFormatPBINode {
 //        }
 //      }
 
-      HddsBlockInfo[] blocks = new HddsBlockInfo[bp.size()];
+      BlockInfo[] blocks = new BlockInfo[bp.size()];
       for (int i = 0; i < bp.size(); ++i) {
         HdfsProtos.HDDSServerLocationInfoProto b = bp.get(i);
         blocks[i] = HddsBlockInfo.getFromProtobuf(b);
@@ -640,11 +640,11 @@ public final class FSImageFormatPBINode {
     private void save(OutputStream out, INodeFile n) throws IOException {
       INodeSection.INodeFile.Builder b = buildINodeFile(n,
           parent.getSaverContext());
-      HddsBlockInfo[] blocks = n.getHddsBlocks();
+      BlockInfo[] blocks = n.getBlocks();
 
       if (blocks != null) {
-        for (HddsBlockInfo block : blocks) {
-          b.addHddsBlocks(block.getProtobuf());
+        for (BlockInfo block : blocks) {
+          b.addHddsBlocks(((HddsBlockInfo) block).getProtobuf());
         }
       }
 

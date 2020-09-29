@@ -39,7 +39,6 @@ public final class HddsBlockInfo extends BlockInfoContiguous
     implements Writable{
   private BlockID blockID;
   // the id of this subkey in all the subkeys.
-  private long length;
   private long offset;
   // Block token, required for client authentication when security is enabled.
   // TODO(baoloongmao) take token back when we need.
@@ -53,7 +52,7 @@ public final class HddsBlockInfo extends BlockInfoContiguous
   private HddsBlockInfo(BlockID blockID, long length, long offset) {
     super((short) 0);
     this.blockID = blockID;
-    this.length = length;
+    setNumBytes(length);
     this.offset = offset;
   }
 
@@ -67,14 +66,6 @@ public final class HddsBlockInfo extends BlockInfoContiguous
 
   public long getLocalID() {
     return blockID.getLocalID();
-  }
-
-  public long getLength() {
-    return length;
-  }
-
-  public void setLength(long length) {
-    this.length = length;
   }
 
   public long getOffset() {
@@ -118,7 +109,7 @@ public final class HddsBlockInfo extends BlockInfoContiguous
         .newBuilder()
         .setContainerId(blockID.getContainerID())
         .setLocalId(blockID.getLocalID())
-        .setLength(getLength())
+        .setLength(getNumBytes())
         .setOffset(getOffset())
         .build();
   }
@@ -147,7 +138,7 @@ public final class HddsBlockInfo extends BlockInfoContiguous
   public String toString() {
     return "{blockID={containerID=" + blockID.getContainerID() +
         ", localID=" + blockID.getLocalID() + "}" +
-        ", length=" + length +
+        ", numOfBytes=" + getNumBytes() +
         ", offset=" + offset +
         '}';
   }
@@ -168,7 +159,7 @@ public final class HddsBlockInfo extends BlockInfoContiguous
   final void writeHelper(DataOutput out) throws IOException {
     out.writeLong(blockID.getContainerID());
     out.writeLong(blockID.getLocalID());
-    out.writeLong(length);
+    out.writeLong(getNumBytes());
     out.writeLong(offset);
   }
 
@@ -176,7 +167,7 @@ public final class HddsBlockInfo extends BlockInfoContiguous
     long containerID = in.readLong();
     long localID = in.readLong();
     this.blockID = new BlockID(containerID, localID);
-    this.length = in.readLong();
+    setNumBytes(in.readLong());
     this.offset = in.readLong();
   }
 
@@ -189,17 +180,18 @@ public final class HddsBlockInfo extends BlockInfoContiguous
       return false;
     }
     HddsBlockInfo that = (HddsBlockInfo) o;
-    return length == that.length &&
+    return getNumBytes() == that.getNumBytes() &&
         offset == that.offset &&
         Objects.equals(blockID, that.blockID);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(blockID, length, offset);
+    return Objects.hash(blockID, getNumBytes(), offset);
   }
 
-  public long getNumBytes() {
-    return length;
+  public String getBlockName() {
+    return new StringBuilder().append(BLOCK_FILE_PREFIX)
+        .append(blockID).toString();
   }
 }

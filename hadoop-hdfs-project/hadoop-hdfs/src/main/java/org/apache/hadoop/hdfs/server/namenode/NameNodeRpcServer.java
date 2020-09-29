@@ -153,6 +153,7 @@ import org.apache.hadoop.hdfs.security.token.block.ExportedBlockKeys;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManagerFaultInjector;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.NamenodeRole;
 import org.apache.hadoop.hdfs.server.common.HttpGetFailedException;
@@ -2621,8 +2622,18 @@ public class NameNodeRpcServer implements NamenodeProtocols {
       long clientID)
       throws IOException {
     checkNNStartup();
+    ExtendedBlock extendBlock = null;
+    if (previous != null) {
+      HddsBlockInfo blockInfo = new HddsBlockInfo.Builder()
+          .setBlockID(previous.getBlockID())
+          .setLength(previous.getLength())
+          .setOffset(previous.getOffset())
+          .build();
+      extendBlock =
+          new ExtendedBlock(namesystem.getBlockPoolId(), blockInfo);
+    }
     HDDSLocatedBlock allocateBlock = namesystem.getAdditionalHDDSBlock(
-        src, clientName, previous, excludeList,
+        src, clientName, extendBlock, excludeList,
         fileId, clientID);
     if (allocateBlock != null) {
       metrics.incrAddBlockOps();
@@ -2648,7 +2659,17 @@ public class NameNodeRpcServer implements NamenodeProtocols {
       HDDSLocatedBlock last, long fileId)
       throws IOException {
     checkNNStartup();
-    namesystem.completeHDDSFile(src, clientName, last, fileId);
+    ExtendedBlock extendBlock = null;
+    if (last != null) {
+      HddsBlockInfo blockInfo = new HddsBlockInfo.Builder()
+          .setBlockID(last.getBlockID())
+          .setLength(last.getLength())
+          .setOffset(last.getOffset())
+          .build();
+      extendBlock =
+          new ExtendedBlock(namesystem.getBlockPoolId(), blockInfo);
+    }
+    namesystem.completeFile(src, clientName, extendBlock, fileId);
     return true;
   }
 

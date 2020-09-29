@@ -52,20 +52,8 @@ import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenSecretManager;
 import org.apache.hadoop.hdfs.security.token.block.DataEncryptionKey;
 import org.apache.hadoop.hdfs.security.token.block.ExportedBlockKeys;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockCollection;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockIdManager;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockPlacementPolicy;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockReportLeaseManager;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
-import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor;
-import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeManager;
-import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeStorageInfo;
-import org.apache.hadoop.hdfs.server.blockmanagement.NumberReplicas;
-import org.apache.hadoop.hdfs.server.blockmanagement.ProvidedStorageMap;
-import org.apache.hadoop.hdfs.server.blockmanagement.SafeModeManager;
-import org.apache.hadoop.hdfs.server.blockmanagement.StorageTypeStats;
+import org.apache.hadoop.hdfs.server.blockmanagement.*;
+import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodesInPath;
@@ -171,10 +159,10 @@ public class HddsBlockManager implements BlockManager {
     int curBlk;
     long curPos = 0, blkSize = 0;
     HddsBlockInfo hddsBlockInfo = (HddsBlockInfo) blocks[0];
-    int nrBlocks = (hddsBlockInfo.getLength() == 0) ? 0 : blocks.length;
+    int nrBlocks = (hddsBlockInfo.getNumBytes() == 0) ? 0 : blocks.length;
     for (curBlk = 0; curBlk < nrBlocks; curBlk++) {
       hddsBlockInfo = (HddsBlockInfo) blocks[curBlk];
-      blkSize = hddsBlockInfo.getLength();
+      blkSize = hddsBlockInfo.getNumBytes();
       assert blkSize > 0 : "Block of size 0";
       if (curPos + blkSize > offset) {
         break;
@@ -201,7 +189,7 @@ public class HddsBlockManager implements BlockManager {
 
       locatedBlocks.addBlock(
           createLocatedBlock(locatedBlocks, hddsBlockInfo, curPos, mode, cp.getPipeline()));
-      curPos += hddsBlockInfo.getLength();
+      curPos += hddsBlockInfo.getNumBytes();
       curBlk++;
     } while (curPos < endOff
         && curBlk < blocks.length
@@ -221,7 +209,7 @@ public class HddsBlockManager implements BlockManager {
       locationInfo = new HDDSLocatedBlock.Builder()
           .setBlockID(blk.getBlockID())
           .setPipeline(pipeline)
-          .setLength(blk.getLength())
+          .setLength(blk.getNumBytes())
           .setOffset(blk.getOffset())
           .build();
     }
@@ -475,8 +463,7 @@ public class HddsBlockManager implements BlockManager {
 
   @Override
   public short getMinStorageNum(BlockInfo block) {
-    throw new UnsupportedOperationException(
-        "HddsBlockManager does not support getMinStorageNum!");
+    return 0;
   }
 
   @Override
@@ -487,14 +474,12 @@ public class HddsBlockManager implements BlockManager {
 
   @Override
   public boolean hasMinStorage(BlockInfo block) {
-    throw new UnsupportedOperationException(
-        "HddsBlockManager does not support hasMinStorage!");
+    return true;
   }
 
   @Override
   public boolean hasMinStorage(BlockInfo block, int liveNum) {
-    throw new UnsupportedOperationException(
-        "HddsBlockManager does not support hasMinStorage!");
+    return true;
   }
 
   /**
@@ -511,8 +496,99 @@ public class HddsBlockManager implements BlockManager {
   @Override
   public boolean commitOrCompleteLastBlock(BlockCollection bc,
       Block commitBlock, INodesInPath iip) throws IOException {
-    throw new UnsupportedOperationException(
-        "HddsBlockManager does not support commitOrCompleteLastBlock!");
+    if(commitBlock == null)
+      return false; // not committing, this is a block allocation retry
+    BlockInfo lastBlock = bc.getLastBlock();
+    if(lastBlock == null)
+      return false; // no blocks in file yet
+    if(lastBlock.isComplete())
+      return false; // already completed (e.g. by syncBlock)
+    if(lastBlock.isUnderRecovery()) {
+      throw new IOException("Commit or complete block " + commitBlock +
+          ", whereas it is under recovery.");
+    }
+
+    final boolean committed = commitBlock(lastBlock, commitBlock);
+    if (committed && lastBlock.isStriped()) {
+      // update scheduled size for DatanodeStorages that do not store any
+      // internal blocks
+      lastBlock.getUnderConstructionFeature()
+          .updateStorageScheduledSize((BlockInfoStriped) lastBlock);
+    }
+
+    // Count replicas on decommissioning nodes, as these will not be
+    // decommissioned unless recovery/completing last block has finished
+    NumberReplicas numReplicas = countNodes(lastBlock);
+    int numUsableReplicas = numReplicas.liveReplicas() +
+        numReplicas.decommissioning() +
+        numReplicas.liveEnteringMaintenanceReplicas();
+
+    if (hasMinStorage(lastBlock, numUsableReplicas)) {
+      if (committed) {
+        addExpectedReplicasToPending(lastBlock);
+      }
+      completeBlock(lastBlock, iip, false);
+    }
+    return committed;
+  }
+
+  private boolean commitBlock(final BlockInfo block,
+      final Block commitBlock) throws IOException {
+    if (block.getBlockUCState() == HdfsServerConstants.BlockUCState.COMMITTED)
+      return false;
+    assert block.getNumBytes() <= commitBlock.getNumBytes() :
+        "commitBlock length is less than the stored one "
+            + commitBlock.getNumBytes() + " vs. " + block.getNumBytes();
+    if(block.getGenerationStamp() != commitBlock.getGenerationStamp()) {
+      throw new IOException("Commit block with mismatching GS. NN has " +
+          block + ", client submits " + commitBlock);
+    }
+    List<ReplicaUnderConstruction> staleReplicas =
+        block.commitBlock(commitBlock);
+    return true;
+  }
+
+  /**
+   * Convert a specified block of the file to a complete block.
+   * @param curBlock - block to be completed
+   * @param iip - INodes in path to file containing curBlock; if null,
+   *              this will be resolved internally
+   * @param force - force completion of the block
+   * @throws IOException if the block does not have at least a minimal number
+   * of replicas reported from data-nodes.
+   */
+  private void completeBlock(BlockInfo curBlock, INodesInPath iip,
+      boolean force) throws IOException {
+    if (curBlock.isComplete()) {
+      return;
+    }
+
+    int numNodes = curBlock.numNodes();
+    if (!force && !hasMinStorage(curBlock, numNodes)) {
+      throw new IOException("Cannot complete block: "
+          + "block does not satisfy minimal replication requirement.");
+    }
+    if (!force && curBlock.getBlockUCState() != HdfsServerConstants.BlockUCState.COMMITTED) {
+      throw new IOException(
+          "Cannot complete block: block has not been COMMITTED by the client");
+    }
+
+    convertToCompleteBlock(curBlock, iip);
+  }
+
+  /**
+   * Convert a specified block of the file to a complete block.
+   * Skips validity checking and safe mode block total updates; use
+   * @param curBlock - block to be completed
+   * @param iip - INodes in path to file containing curBlock; if null,
+   *              this will be resolved internally
+   * @throws IOException if the block does not have at least a minimal number
+   * of replicas reported from data-nodes.
+   */
+  private void convertToCompleteBlock(BlockInfo curBlock, INodesInPath iip)
+      throws IOException {
+    curBlock.convertToCompleteBlock();
+    namesystem.getFSDirectory().updateSpaceForCompleteBlock(curBlock, iip);
   }
 
   /**
@@ -524,8 +600,8 @@ public class HddsBlockManager implements BlockManager {
    */
   @Override
   public void forceCompleteBlock(BlockInfo block) throws IOException {
-    throw new UnsupportedOperationException(
-        "HddsBlockManager does not support forceCompleteBlock!");
+    List<ReplicaUnderConstruction> staleReplicas = block.commitBlock(block);
+    completeBlock(block, null, true);
   }
 
   /**
@@ -537,8 +613,6 @@ public class HddsBlockManager implements BlockManager {
    */
   @Override
   public void addExpectedReplicasToPending(BlockInfo blk) {
-    throw new UnsupportedOperationException(
-        "HddsBlockManager does not support addExpectedReplicasToPending!");
   }
 
   /**
@@ -966,8 +1040,7 @@ public class HddsBlockManager implements BlockManager {
 
   @Override
   public void removeBlock(BlockInfo block) {
-    throw new UnsupportedOperationException("HddsBlockManager does not " +
-        "support removeBlock!");
+    // TODO(baoloongmao): micahzhao will finish this.
   }
 
   /**
@@ -981,8 +1054,8 @@ public class HddsBlockManager implements BlockManager {
    */
   @Override
   public NumberReplicas countNodes(BlockInfo b) {
-    throw new UnsupportedOperationException("HddsBlockManager does not " +
-        "support countNodes!");
+    NumberReplicas numberReplicas = new NumberReplicas();
+    return numberReplicas;
   }
 
   @Override
@@ -1074,8 +1147,7 @@ public class HddsBlockManager implements BlockManager {
 
   @Override
   public BlockInfo addBlockCollection(BlockInfo block, BlockCollection bc) {
-    throw new UnsupportedOperationException("HddsBlockManager does not " +
-        "support addBlockCollection!");
+    return block;
   }
 
   /**
@@ -1088,7 +1160,8 @@ public class HddsBlockManager implements BlockManager {
   @Override
   public BlockInfo addBlockCollectionWithCheck(BlockInfo block,
       BlockCollection bc) {
-    return null;
+    block.setBlockCollectionId(bc.getId());
+    return block;
   }
 
   /**
@@ -1109,8 +1182,6 @@ public class HddsBlockManager implements BlockManager {
    */
   @Override
   public void removeBlockFromMap(BlockInfo block) {
-    throw new UnsupportedOperationException("HddsBlockManager does not " +
-        "support removeBlockFromMap!");
   }
 
   /**
