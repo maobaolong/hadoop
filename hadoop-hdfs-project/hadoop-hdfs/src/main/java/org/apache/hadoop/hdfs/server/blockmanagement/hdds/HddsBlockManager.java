@@ -31,6 +31,7 @@ import org.apache.hadoop.hdds.scm.container.common.helpers.AllocatedBlock;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException;
+import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.protocol.ScmBlockLocationProtocol;
 import org.apache.hadoop.hdds.scm.protocol.ScmClient;
 import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
@@ -58,7 +59,6 @@ import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockPlacementPolicy;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockReportLeaseManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlocksMap;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeStorageInfo;
@@ -79,23 +79,26 @@ import org.apache.hadoop.hdfs.server.protocol.StorageReceivedDeletedBlocks;
 import org.apache.hadoop.metrics2.util.MBeans;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.ozone.common.BlockGroup;
-import org.apache.hadoop.util.LightWeightGSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.management.ObjectName;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
+
+import static org.apache.hadoop.hdds.HddsUtils.getScmAddressForBlockClients;
 
 public class HddsBlockManager implements BlockManager {
   public static final Logger LOG =
@@ -106,13 +109,14 @@ public class HddsBlockManager implements BlockManager {
   private final HddsSafeModeManager safeModeManager;
   private final BlockIdManager blockIdManager;
   private String scmID;
+  private String blockPoolId;
   private final BlockStoragePolicySuite storagePolicySuite;
   /** Minimum copies needed or else write is disallowed */
   public final short minReplication;
   /** The maximum number of replicas allowed for a block */
   public final short maxReplication;
-  final BlocksMap blocksMap;
   private ObjectName mxBeanName;
+  private final InetSocketAddress scmBlockAddress;
 
   public HddsBlockManager(final FSNamesystem namesystem,
       final Configuration conf) throws IOException {
@@ -121,6 +125,7 @@ public class HddsBlockManager implements BlockManager {
         ScmClient.getScmBlockClient(o3Conf);
     StorageContainerLocationProtocol scmContainerClient =
         ScmClient.getScmContainerClient(o3Conf);
+    scmBlockAddress = getScmAddressForBlockClients(o3Conf);
     this.namesystem = namesystem;
     this.scmClient = new ScmClient(scmBlockClient, scmContainerClient);
     scmID = getScmID();
@@ -133,8 +138,6 @@ public class HddsBlockManager implements BlockManager {
         DFSConfigKeys.DFS_NAMENODE_REPLICATION_MIN_DEFAULT);
     maxReplication = (short)conf.getInt(DFSConfigKeys.DFS_REPLICATION_MAX_KEY,
         DFSConfigKeys.DFS_REPLICATION_MAX_DEFAULT);
-    blocksMap = new BlocksMap(
-        LightWeightGSet.computeCapacity(2.0, "BlocksMap"));
   }
 
   @VisibleForTesting
@@ -142,9 +145,12 @@ public class HddsBlockManager implements BlockManager {
     return scmClient;
   }
 
-
   public String getBlockPoolId() {
-    return scmID;
+    return blockPoolId;
+  }
+
+  public String getBlockPoolInfo() {
+    return "scmAddr: " + scmBlockAddress.toString() + ", scmId: " + scmID;
   }
 
   private String getScmID() {
@@ -157,53 +163,18 @@ public class HddsBlockManager implements BlockManager {
     }
   }
 
-  public HDDSLocatedBlocks createLocatedBlocks(
-      final HDDSBlockInfo[] blocks,
-      final long fileSizeExcludeBlocksUnderConstruction,
-      final boolean isFileUnderConstruction, final long offset,
-      final long length, final boolean needBlockToken,
-      final boolean inSnapshot, FileEncryptionInfo feInfo,
-      ErasureCodingPolicy ecPolicy)
-      throws IOException {
-    assert namesystem.hasReadLock();
-    if (blocks == null) {
-      return null;
-    } else if (blocks.length == 0) {
-      return new HDDSLocatedBlocks(0L, isFileUnderConstruction,
-          Collections.emptyList(), null, false, feInfo, ecPolicy);
-    } else {
-      if (LOG.isDebugEnabled()) {
-        LOG.debug("blocks = {}", java.util.Arrays.asList(blocks));
-      }
-      final BlockTokenIdentifier.AccessMode
-          mode = needBlockToken? BlockTokenIdentifier.AccessMode.READ: null;
-
-      HddsLocatedBlockBuilder locatedBlocks =
-          new HddsLocatedBlockBuilder(Integer.MAX_VALUE)
-              .fileLength(fileSizeExcludeBlocksUnderConstruction)
-              .lastUC(isFileUnderConstruction)
-              .encryption(feInfo)
-              .erasureCoding(ecPolicy);
-
-      createLocatedBlockList(locatedBlocks, blocks, offset, length, mode);
-      // TODO(baoloongmao): handle last block correctly.
-      HDDSLocatedBlocks locations = locatedBlocks.build();
-      // Set caching information for the located blocks.
-      // TODO(baoloongmao): open cache when we plan to use it.
-      return locations;
-    }
-  }
-
   private void createLocatedBlockList(
       HddsLocatedBlockBuilder locatedBlocks,
-      final HDDSBlockInfo[] blocks,
+      final BlockInfo[] blocks,
       final long offset, final long length,
       final BlockTokenIdentifier.AccessMode mode) throws IOException {
     int curBlk;
     long curPos = 0, blkSize = 0;
-    int nrBlocks = (blocks[0].getLength() == 0) ? 0 : blocks.length;
+    HddsBlockInfo hddsBlockInfo = (HddsBlockInfo) blocks[0];
+    int nrBlocks = (hddsBlockInfo.getLength() == 0) ? 0 : blocks.length;
     for (curBlk = 0; curBlk < nrBlocks; curBlk++) {
-      blkSize = blocks[curBlk].getLength();
+      hddsBlockInfo = (HddsBlockInfo) blocks[curBlk];
+      blkSize = hddsBlockInfo.getLength();
       assert blkSize > 0 : "Block of size 0";
       if (curPos + blkSize > offset) {
         break;
@@ -214,11 +185,23 @@ public class HddsBlockManager implements BlockManager {
     if (nrBlocks > 0 && curBlk == nrBlocks)   // offset >= end of file
       return;
 
+    Set<Long> containerIDs = new HashSet<>();
+    for (BlockInfo bi : blocks) {
+      hddsBlockInfo = (HddsBlockInfo) bi;
+      containerIDs.add(hddsBlockInfo.getContainerID());
+    }
+    Map<Long, ContainerWithPipeline> containerWithPipelineMap =
+        this.refreshPipeline(containerIDs);
+
     long endOff = offset + length;
     do {
+      hddsBlockInfo = (HddsBlockInfo) blocks[curBlk];
+      ContainerWithPipeline cp =
+          containerWithPipelineMap.get(hddsBlockInfo.getContainerID());
+
       locatedBlocks.addBlock(
-          createLocatedBlock(locatedBlocks, blocks[curBlk], curPos, mode));
-      curPos += blocks[curBlk].getLength();
+          createLocatedBlock(locatedBlocks, hddsBlockInfo, curPos, mode, cp.getPipeline()));
+      curPos += hddsBlockInfo.getLength();
       curBlk++;
     } while (curPos < endOff
         && curBlk < blocks.length
@@ -228,17 +211,18 @@ public class HddsBlockManager implements BlockManager {
 
   private HDDSLocatedBlock createLocatedBlock(
       HddsLocatedBlockBuilder locatedBlocks,
-      final HDDSBlockInfo blk, final long pos,
-      final BlockTokenIdentifier.AccessMode mode) throws IOException {
+      final HddsBlockInfo blk, final long pos,
+      final BlockTokenIdentifier.AccessMode mode,
+      final Pipeline pipeline
+  ) throws IOException {
     // TODO(baoloongmao): open block token until necessary
     HDDSLocatedBlock locationInfo = null;
     if (blk != null) {
       locationInfo = new HDDSLocatedBlock.Builder()
           .setBlockID(blk.getBlockID())
-          .setPipeline(blk.getPipeline())
+          .setPipeline(pipeline)
           .setLength(blk.getLength())
           .setOffset(blk.getOffset())
-          .setToken(blk.getToken())
           .build();
     }
     return locationInfo;
@@ -278,7 +262,7 @@ public class HddsBlockManager implements BlockManager {
 
   @Override
   public void setBlockPoolId(String blockPoolId) {
-    scmID = blockPoolId;
+    this.blockPoolId = blockPoolId;
   }
 
   @Override
@@ -597,8 +581,33 @@ public class HddsBlockManager implements BlockManager {
       boolean isFileUnderConstruction, long offset, long length,
       boolean needBlockToken, boolean inSnapshot, FileEncryptionInfo feInfo,
       ErasureCodingPolicy ecPolicy) throws IOException {
-    throw new UnsupportedOperationException(
-        "HddsBlockManager does not support createLocatedBlocks!");
+    assert namesystem.hasReadLock();
+    if (blocks == null) {
+      return null;
+    } else if (blocks.length == 0) {
+      return new HDDSLocatedBlocks(0L, isFileUnderConstruction,
+          Collections.emptyList(), null, false, feInfo, ecPolicy);
+    } else {
+      if (LOG.isDebugEnabled()) {
+        LOG.debug("blocks = {}", java.util.Arrays.asList(blocks));
+      }
+      final BlockTokenIdentifier.AccessMode
+          mode = needBlockToken? BlockTokenIdentifier.AccessMode.READ: null;
+
+      HddsLocatedBlockBuilder locatedBlocks =
+          new HddsLocatedBlockBuilder(Integer.MAX_VALUE)
+              .fileLength(fileSizeExcludeBlocksUnderConstruction)
+              .lastUC(isFileUnderConstruction)
+              .encryption(feInfo)
+              .erasureCoding(ecPolicy);
+
+      createLocatedBlockList(locatedBlocks, blocks, offset, length, mode);
+      // TODO(baoloongmao): handle last block correctly.
+      HDDSLocatedBlocks locations = locatedBlocks.build();
+      // Set caching information for the located blocks.
+      // TODO(baoloongmao): open cache when we plan to use it.
+      return locations;
+    }
   }
 
   @Override
@@ -795,8 +804,6 @@ public class HddsBlockManager implements BlockManager {
    */
   @Override
   public void setBlockTotal(long total) {
-    throw new UnsupportedOperationException(
-        "HddsBlockManager does not support setBlockTotal!");
   }
 
   /**
@@ -860,8 +867,6 @@ public class HddsBlockManager implements BlockManager {
   @Override
   public void processFirstBlockReport(DatanodeStorageInfo storageInfo,
       BlockListAsLongs report) throws IOException {
-    throw new UnsupportedOperationException("HddsBlockManager does not " +
-        "support processFirstBlockReport!");
   }
 
   /**
@@ -877,15 +882,11 @@ public class HddsBlockManager implements BlockManager {
   @Override
   public void processIncrementalBlockReport(DatanodeID nodeID,
       StorageReceivedDeletedBlocks srdb) throws IOException {
-    throw new UnsupportedOperationException("HddsBlockManager does not " +
-        "support processIncrementalBlockReport!");
   }
 
   @Override
   public void removeBRLeaseIfNeeded(DatanodeID nodeID,
       BlockReportContext context) throws IOException {
-    throw new UnsupportedOperationException("HddsBlockManager does not " +
-        "support removeBRLeaseIfNeeded!");
   }
 
   /**
@@ -902,8 +903,6 @@ public class HddsBlockManager implements BlockManager {
   public void markBlockReplicasAsCorrupt(Block oldBlock, BlockInfo block,
       long oldGenerationStamp, long oldNumBytes,
       DatanodeStorageInfo[] newStorages) throws IOException {
-    throw new UnsupportedOperationException("HddsBlockManager does not " +
-        "support markBlockReplicasAsCorrupt!");
   }
 
   /**
@@ -915,8 +914,6 @@ public class HddsBlockManager implements BlockManager {
    */
   @Override
   public void processQueuedMessagesForBlock(Block b) throws IOException {
-    throw new UnsupportedOperationException("HddsBlockManager does not " +
-        "support processQueuedMessagesForBlock!");
   }
 
   /**
@@ -927,8 +924,6 @@ public class HddsBlockManager implements BlockManager {
    */
   @Override
   public void processAllPendingDNMessages() throws IOException {
-    throw new UnsupportedOperationException("HddsBlockManager does not " +
-        "support processAllPendingDNMessages!");
   }
 
   /**
@@ -937,8 +932,6 @@ public class HddsBlockManager implements BlockManager {
    */
   @Override
   public void processMisReplicatedBlocks() {
-    throw new UnsupportedOperationException("HddsBlockManager does not " +
-        "support processMisReplicatedBlocks!");
   }
 
   /**
@@ -1095,7 +1088,7 @@ public class HddsBlockManager implements BlockManager {
   @Override
   public BlockInfo addBlockCollectionWithCheck(BlockInfo block,
       BlockCollection bc) {
-    return blocksMap.addBlockCollection(block, bc);
+    return null;
   }
 
   /**

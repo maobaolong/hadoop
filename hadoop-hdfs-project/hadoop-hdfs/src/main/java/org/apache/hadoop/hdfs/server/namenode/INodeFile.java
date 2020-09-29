@@ -47,7 +47,7 @@ import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoStriped;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeStorageInfo;
-import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.BlockUCState;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileDiff;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.FileDiffList;
@@ -64,12 +64,12 @@ import com.google.common.base.Preconditions;
 @InterfaceAudience.Private
 public class INodeFile extends INodeWithAdditionalFields
     implements INodeFileAttributes, BlockCollection {
-  public static final HDDSBlockInfo[] HDDS_EMPTY_ARRAY = {};
+  public static final HddsBlockInfo[] HDDS_EMPTY_ARRAY = {};
   /**
    * Erasure Coded striped blocks have replication factor of 1.
    */
   public static final short DEFAULT_REPL_FOR_STRIPED_BLOCKS = 1;
-  private HDDSBlockInfo[] hddsBlocks;
+  private HddsBlockInfo[] hddsBlocks;
 
   /** The same as valueOf(inode, path, false). */
   public static INodeFile valueOf(INode inode, String path
@@ -261,14 +261,14 @@ public class INodeFile extends INodeWithAdditionalFields
   }
 
   INodeFile(long id, byte[] name, PermissionStatus permissions, long mtime,
-      long atime, HDDSBlockInfo[] blklist, short replication,
+      long atime, HddsBlockInfo[] blklist, short replication,
       long preferredBlockSize) {
     this(id, name, permissions, mtime, atime, blklist, replication, null,
         preferredBlockSize, (byte) 0, CONTIGUOUS);
   }
 
   INodeFile(long id, byte[] name, PermissionStatus permissions, long mtime,
-      long atime, HDDSBlockInfo[] blklist, Short replication, Byte ecPolicyID,
+      long atime, HddsBlockInfo[] blklist, Short replication, Byte ecPolicyID,
       long preferredBlockSize, byte storagePolicyID, BlockType blockType) {
     super(id, name, permissions, mtime, atime);
     final long layoutRedundancy = HeaderFormat.getBlockLayoutRedundancy(
@@ -461,7 +461,7 @@ public class INodeFile extends INodeWithAdditionalFields
     return lastBlock;
   }
 
-  HDDSBlockInfo removeHDDSLastBlock(HDDSBlockInfo oldblock) {
+  HddsBlockInfo removeHDDSLastBlock(HddsBlockInfo oldblock) {
     Preconditions.checkState(isUnderConstruction(),
         "file is no longer under construction");
     if (hddsBlocks.length == 0) {
@@ -472,7 +472,7 @@ public class INodeFile extends INodeWithAdditionalFields
       return null;
     }
 
-    HDDSBlockInfo lastBlock = hddsBlocks[size_1];
+    HddsBlockInfo lastBlock = hddsBlocks[size_1];
     //copy to a new list
     BlockInfo[] newlist = new BlockInfo[size_1];
     System.arraycopy(hddsBlocks, 0, newlist, 0, size_1);
@@ -765,28 +765,28 @@ public class INodeFile extends INodeWithAdditionalFields
   }
 
 
-  public void addHDDSBlock(HDDSBlockInfo newblock) {
+  public void addHDDSBlock(HddsBlockInfo newblock) {
     if (this.hddsBlocks.length == 0) {
-      this.setBlocks(new HDDSBlockInfo[]{newblock});
+      this.setBlocks(new HddsBlockInfo[]{newblock});
     } else {
       int size = this.hddsBlocks.length;
-      HDDSBlockInfo[] newlist = new HDDSBlockInfo[size + 1];
+      HddsBlockInfo[] newlist = new HddsBlockInfo[size + 1];
       System.arraycopy(this.hddsBlocks, 0, newlist, 0, size);
       newlist[size] = newblock;
       this.setBlocks(newlist);
     }
   }
 
-  public HDDSBlockInfo getLastHDDSBlock() {
+  public HddsBlockInfo getLastHDDSBlock() {
     return hddsBlocks.length == 0 ? null: hddsBlocks[hddsBlocks.length-1];
   }
 
-  public HDDSBlockInfo[] getHddsBlocks() {
+  public HddsBlockInfo[] getHddsBlocks() {
     return hddsBlocks;
   }
 
   /** Set the blocks. */
-  private void setBlocks(HDDSBlockInfo[] blocks) {
+  private void setBlocks(HddsBlockInfo[] blocks) {
     this.hddsBlocks = (blocks != null ? blocks : HDDS_EMPTY_ARRAY);
   }
 
@@ -1006,7 +1006,7 @@ public class INodeFile extends INodeWithAdditionalFields
     }
     final int last = hddsBlocks.length - 1;
     //check if the last block is BlockInfoUnderConstruction
-    HDDSBlockInfo lastBlk = hddsBlocks[last];
+    HddsBlockInfo lastBlk = hddsBlocks[last];
     long size = lastBlk.getLength();
     //sum other blocks
     for (int i = 0; i < last; i++) {
@@ -1044,7 +1044,7 @@ public class INodeFile extends INodeWithAdditionalFields
   public final QuotaCounts storagespaceConsumedContiguous(
       BlockStoragePolicy bsp) {
     QuotaCounts counts = new QuotaCounts.Builder().build();
-    Iterable<HDDSBlockInfo> blocks = null;
+    Iterable<HddsBlockInfo> blocks = null;
     FileWithSnapshotFeature sf = getFileWithSnapshotFeature();
     if (sf == null) {
       blocks = Arrays.asList(getHddsBlocks());
@@ -1063,7 +1063,7 @@ public class INodeFile extends INodeWithAdditionalFields
     }
 
     final short replication = getPreferredBlockReplication();
-    for (HDDSBlockInfo b : blocks) {
+    for (HddsBlockInfo b : blocks) {
       long blockSize = b.getLength();
       counts.addStorageSpace(blockSize * replication);
       if (bsp != null) {

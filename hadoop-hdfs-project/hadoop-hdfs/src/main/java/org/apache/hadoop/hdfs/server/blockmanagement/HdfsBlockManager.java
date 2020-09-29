@@ -5047,4 +5047,9 @@ public class HdfsBlockManager implements BlockManager {
   public String getEnabledEcPolicies() {
     return ErasureCodingPolicyManager.getInstance().getEnabledPoliciesMetric();
   }
+
+  @Override
+  public String getBlockPoolInfo() {
+    return blockPoolId;
+  }
 }

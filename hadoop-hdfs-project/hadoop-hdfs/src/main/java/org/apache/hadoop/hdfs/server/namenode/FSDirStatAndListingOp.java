@@ -42,7 +42,7 @@ import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.protocol.SnapshotException;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
-import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockManager;
 import org.apache.hadoop.hdfs.server.namenode.FSDirectory.DirOp;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.DirectorySnapshottableFeature;
@@ -52,7 +52,13 @@ import org.apache.hadoop.security.AccessControlException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.apache.hadoop.util.Time.now;
 
@@ -225,38 +231,35 @@ class FSDirStatAndListingOp {
 
         List<LocatedBlock> blks = new ArrayList<>();
         Set<Long> containerIDs = new HashSet<>();
-        for (HDDSBlockInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
+        for (HddsBlockInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
           containerIDs.add(hddsLocationInfo.getContainerID());
         }
         Map<Long, ContainerWithPipeline> containerWithPipelineMap =
             ((HddsBlockManager)fsd.getFSNamesystem().getBlockManager())
                 .refreshPipeline(containerIDs);
-        for (HDDSBlockInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
+        for (HddsBlockInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
           ContainerWithPipeline cp =
               containerWithPipelineMap.get(hddsLocationInfo.getContainerID());
-          if (cp != null && !cp.getPipeline().equals(hddsLocationInfo.getPipeline())) {
-            hddsLocationInfo.setPipeline(cp.getPipeline());
-          }
 
           HDDSLocatedBlock info = new HDDSLocatedBlock.Builder()
               .setBlockID(hddsLocationInfo.getBlockID())
-              .setPipeline(hddsLocationInfo.getPipeline())
+              .setPipeline(cp.getPipeline())
               .setLength(hddsLocationInfo.getLength())
               .setOffset(hddsLocationInfo.getOffset())
-              .setToken(hddsLocationInfo.getToken())
               .build();
           blks.add(info);
         }
 
-        HDDSBlockInfo last = fileNode.getLastHDDSBlock();
+        HddsBlockInfo last = fileNode.getLastHDDSBlock();
         HDDSLocatedBlock locationInfo = null;
         if (last != null) {
+          ContainerWithPipeline cp =
+              containerWithPipelineMap.get(last.getContainerID());
           locationInfo = new HDDSLocatedBlock.Builder()
               .setBlockID(last.getBlockID())
-              .setPipeline(last.getPipeline())
+              .setPipeline(cp.getPipeline())
               .setLength(last.getLength())
               .setOffset(last.getOffset())
-              .setToken(last.getToken())
               .build();
         }
         locatedBlocks = new HDDSLocatedBlocks(
@@ -827,23 +830,10 @@ class FSDirStatAndListingOp {
       final ErasureCodingPolicy ecPolicy = FSDirErasureCodingOp.
           unprotectedGetErasureCodingPolicy(fsd.getFSNamesystem(), iip);
 
-      List<HDDSLocatedBlock> blks = new ArrayList<>();
-      Set<Long> containerIDs = new HashSet<>();
+
       final INode node = iip.getLastINode();
       INodeFile fileNode = node.asFile();
-      for (HDDSBlockInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
-        containerIDs.add(hddsLocationInfo.getContainerID());
-      }
-      Map<Long, ContainerWithPipeline> containerWithPipelineMap =
-          ((HddsBlockManager)fsd.getFSNamesystem().getBlockManager())
-              .refreshPipeline(containerIDs);
-      for (HDDSBlockInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
-        ContainerWithPipeline cp =
-            containerWithPipelineMap.get(hddsLocationInfo.getContainerID());
-        if (cp != null && !cp.getPipeline().equals(hddsLocationInfo.getPipeline())) {
-          hddsLocationInfo.setPipeline(cp.getPipeline());
-        }
-      }
+
       // TODO(baoloongmao): ignore snapshot now.
       final LocatedBlocks blocks = bm.createLocatedBlocks(
           inode.getHddsBlocks(), fileSize, isUc, offset,

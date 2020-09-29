@@ -38,7 +38,7 @@ import org.apache.hadoop.hdfs.protocol.CachePoolInfo;
 import org.apache.hadoop.hdfs.protocol.LayoutVersion;
 import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
-import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.BlockUCState;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotFSImageFormat;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotFSImageFormat.ReferenceMap;
@@ -116,13 +116,13 @@ public class FSImageSerialization {
     }
   }
 
-  private static void writeHDDSBlocks(final HDDSBlockInfo[] blocks,
+  private static void writeHDDSBlocks(final HddsBlockInfo[] blocks,
       final DataOutput out) throws IOException {
     if (blocks == null) {
       out.writeInt(0);
     } else {
       out.writeInt(blocks.length);
-      for (HDDSBlockInfo blk : blocks) {
+      for (HddsBlockInfo blk : blocks) {
         blk.write(out);
       }
     }
@@ -144,18 +144,18 @@ public class FSImageSerialization {
 
     int numBlocks = in.readInt();
 
-    final HDDSBlockInfo[] blocks =
-        new HDDSBlockInfo[numBlocks];
+    final HddsBlockInfo[] blocks =
+        new HddsBlockInfo[numBlocks];
 
     int i = 0;
     for (; i < numBlocks - 1; i++) {
-      HDDSBlockInfo blk = new HDDSBlockInfo();
+      HddsBlockInfo blk = new HddsBlockInfo();
       blk.readFields(in);
       blocks[i] = blk;
     }
     // last block is UNDER_CONSTRUCTION
     if(numBlocks > 0) {
-      HDDSBlockInfo blk = new HDDSBlockInfo();
+      HddsBlockInfo blk = new HddsBlockInfo();
       blk.readFields(in);
       blocks[i] = blk;
       // TODO(runzhiwang): open comment
@@ -568,10 +568,10 @@ public class FSImageSerialization {
   }
 
   public static void writeCompactHddsBlockArray(
-      HDDSBlockInfo[] blocks, DataOutputStream out) throws IOException {
+      HddsBlockInfo[] blocks, DataOutputStream out) throws IOException {
     WritableUtils.writeVInt(out, blocks.length);
-    HDDSBlockInfo prev = null;
-    for (HDDSBlockInfo b : blocks) {
+    HddsBlockInfo prev = null;
+    for (HddsBlockInfo b : blocks) {
       out.writeLong(b.getContainerID());
       out.writeLong(b.getLocalID());
       long szDelta = b.getNumBytes() -
@@ -604,14 +604,14 @@ public class FSImageSerialization {
     return ret;
   }
 
-  public static HDDSBlockInfo[] readCompactHddsBlockArray(
+  public static HddsBlockInfo[] readCompactHddsBlockArray(
       DataInput in, int logVersion) throws IOException {
     int num = WritableUtils.readVInt(in);
     if (num < 0) {
       throw new IOException("Invalid block array length: " + num);
     }
-    HDDSBlockInfo prev = null;
-    HDDSBlockInfo[] ret = new HDDSBlockInfo[num];
+    HddsBlockInfo prev = null;
+    HddsBlockInfo[] ret = new HddsBlockInfo[num];
     for (int i = 0; i < num; i++) {
       long containerId = in.readLong();
       long localId = in.readLong();
@@ -619,7 +619,7 @@ public class FSImageSerialization {
           ((prev != null) ? prev.getNumBytes() : 0);
       long offset = WritableUtils.readVLong(in) +
           ((prev != null) ? prev.getOffset() : 0);
-      ret[i] = new HDDSBlockInfo.Builder()
+      ret[i] = new HddsBlockInfo.Builder()
           .setBlockID(new BlockID(containerId, localId))
           .setLength(length)
           .setOffset(offset)

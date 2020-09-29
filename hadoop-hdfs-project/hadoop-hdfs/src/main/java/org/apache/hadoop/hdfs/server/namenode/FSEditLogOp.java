@@ -115,7 +115,7 @@ import org.apache.hadoop.hdfs.protocol.proto.EditLogProtos.AclEditLogProto;
 import org.apache.hadoop.hdfs.protocol.proto.EditLogProtos.XAttrEditLogProto;
 import org.apache.hadoop.hdfs.protocolPB.PBHelperClient;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
-import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.util.XMLUtils;
 import org.apache.hadoop.hdfs.util.XMLUtils.InvalidXmlException;
@@ -290,7 +290,7 @@ public abstract class FSEditLogOp {
   }
 
   static interface BlockListUpdatingOp {
-    HDDSBlockInfo[] getBlocks();
+    HddsBlockInfo[] getBlocks();
     String getPath();
     boolean shouldCompleteLastBlock();
   }
@@ -425,7 +425,7 @@ public abstract class FSEditLogOp {
     long mtime;
     long atime;
     long blockSize;
-    HDDSBlockInfo[] blocks;
+    HddsBlockInfo[] blocks;
     PermissionStatus permissions;
     List<AclEntry> aclEntries;
     List<XAttr> xAttrs;
@@ -497,7 +497,7 @@ public abstract class FSEditLogOp {
       return (T)this;
     }
 
-    <T extends AddCloseOp> T setBlocks(HDDSBlockInfo[] blocks) {
+    <T extends AddCloseOp> T setBlocks(HddsBlockInfo[] blocks) {
       if (blocks.length > MAX_BLOCKS) {
         throw new RuntimeException("Can't have more than " + MAX_BLOCKS +
             " in an AddCloseOp.");
@@ -507,7 +507,7 @@ public abstract class FSEditLogOp {
     }
     
     @Override
-    public HDDSBlockInfo[] getBlocks() {
+    public HddsBlockInfo[] getBlocks() {
       return blocks;
     }
 
@@ -565,7 +565,7 @@ public abstract class FSEditLogOp {
       FSImageSerialization.writeLong(mtime, out);
       FSImageSerialization.writeLong(atime, out);
       FSImageSerialization.writeLong(blockSize, out);
-      new ArrayWritable(HDDSBlockInfo.class, blocks).write(out);
+      new ArrayWritable(HddsBlockInfo.class, blocks).write(out);
       permissions.write(out);
 
       if (this.opCode == OP_ADD) {
@@ -677,7 +677,7 @@ public abstract class FSEditLogOp {
 
     static final public int MAX_BLOCKS = 1024 * 1024 * 64;
     
-    private static HDDSBlockInfo[] readHddsBlocks(
+    private static HddsBlockInfo[] readHddsBlocks(
         DataInputStream in,
         int logVersion) throws IOException {
       int numBlocks = in.readInt();
@@ -687,9 +687,9 @@ public abstract class FSEditLogOp {
         throw new IOException("invalid number of blocks: " + numBlocks +
             ".  The maximum number of blocks per file is " + MAX_BLOCKS);
       }
-      HDDSBlockInfo[] blocks = new HDDSBlockInfo[numBlocks];
+      HddsBlockInfo[] blocks = new HddsBlockInfo[numBlocks];
       for (int i = 0; i < numBlocks; i++) {
-        HDDSBlockInfo blk = new HDDSBlockInfo();
+        HddsBlockInfo blk = new HddsBlockInfo();
         blk.readFields(in);
         blocks[i] = blk;
       }
@@ -758,7 +758,7 @@ public abstract class FSEditLogOp {
       XMLUtils.addSaxString(contentHandler, "CLIENT_MACHINE", clientMachine);
       XMLUtils.addSaxString(contentHandler, "OVERWRITE", 
           Boolean.toString(overwrite));
-      for (HDDSBlockInfo b : blocks) {
+      for (HddsBlockInfo b : blocks) {
         FSEditLogOp.blockToXml(contentHandler, b);
       }
       FSEditLogOp.permissionStatusToXml(contentHandler, permissions);
@@ -787,12 +787,12 @@ public abstract class FSEditLogOp {
       this.overwrite = Boolean.parseBoolean(st.getValueOrNull("OVERWRITE"));
       if (st.hasChildren("BLOCK")) {
         List<Stanza> blocks = st.getChildren("BLOCK");
-        this.blocks = new HDDSBlockInfo[blocks.size()];
+        this.blocks = new HddsBlockInfo[blocks.size()];
         for (int i = 0; i < blocks.size(); i++) {
           this.blocks[i] = FSEditLogOp.blockFromXml(blocks.get(i));
         }
       } else {
-        this.blocks = new HDDSBlockInfo[0];
+        this.blocks = new HddsBlockInfo[0];
       }
       this.permissions = permissionStatusFromXml(st);
       aclEntries = readAclEntriesFromXml(st);
@@ -952,8 +952,8 @@ public abstract class FSEditLogOp {
   
   static class AddBlockOp extends FSEditLogOp {
     private String path;
-    private HDDSBlockInfo penultimateBlock;
-    private HDDSBlockInfo lastBlock;
+    private HddsBlockInfo penultimateBlock;
+    private HddsBlockInfo lastBlock;
     
     AddBlockOp() {
       super(OP_ADD_BLOCK);
@@ -979,21 +979,21 @@ public abstract class FSEditLogOp {
       return path;
     }
 
-    AddBlockOp setPenultimateBlock(HDDSBlockInfo pBlock) {
+    AddBlockOp setPenultimateBlock(HddsBlockInfo pBlock) {
       this.penultimateBlock = pBlock;
       return this;
     }
 
-    HDDSBlockInfo getPenultimateBlock() {
+    HddsBlockInfo getPenultimateBlock() {
       return penultimateBlock;
     }
     
-    AddBlockOp setLastBlock(HDDSBlockInfo lastBlock) {
+    AddBlockOp setLastBlock(HddsBlockInfo lastBlock) {
       this.lastBlock = lastBlock;
       return this;
     }
 
-    HDDSBlockInfo getLastBlock() {
+    HddsBlockInfo getLastBlock() {
       return lastBlock;
     }
 
@@ -1001,7 +1001,7 @@ public abstract class FSEditLogOp {
     public void writeFields(DataOutputStream out) throws IOException {
       FSImageSerialization.writeString(path, out);
       int size = penultimateBlock != null ? 2 : 1;
-      HDDSBlockInfo[] blocks = new HDDSBlockInfo[size];
+      HddsBlockInfo[] blocks = new HddsBlockInfo[size];
       if (penultimateBlock != null) {
         blocks[0] = penultimateBlock;
       }
@@ -1014,7 +1014,7 @@ public abstract class FSEditLogOp {
     @Override
     void readFields(DataInputStream in, int logVersion) throws IOException {
       path = FSImageSerialization.readString(in);
-      HDDSBlockInfo[] blocks =
+      HddsBlockInfo[] blocks =
           FSImageSerialization.readCompactHddsBlockArray(in, logVersion);
       Preconditions.checkState(blocks.length == 2 || blocks.length == 1);
       penultimateBlock = blocks.length == 1 ? null : blocks[0];
@@ -1065,7 +1065,7 @@ public abstract class FSEditLogOp {
    */
   static class UpdateBlocksOp extends FSEditLogOp implements BlockListUpdatingOp {
     String path;
-    HDDSBlockInfo[] blocks;
+    HddsBlockInfo[] blocks;
     
     UpdateBlocksOp() {
       super(OP_UPDATE_BLOCKS);
@@ -1091,13 +1091,13 @@ public abstract class FSEditLogOp {
       return path;
     }
 
-    UpdateBlocksOp setBlocks(HDDSBlockInfo[] blocks) {
+    UpdateBlocksOp setBlocks(HddsBlockInfo[] blocks) {
       this.blocks = blocks;
       return this;
     }
     
     @Override
-    public HDDSBlockInfo[] getBlocks() {
+    public HddsBlockInfo[] getBlocks() {
       return blocks;
     }
 
@@ -1140,7 +1140,7 @@ public abstract class FSEditLogOp {
     @Override
     protected void toXml(ContentHandler contentHandler) throws SAXException {
       XMLUtils.addSaxString(contentHandler, "PATH", path);
-      for (HDDSBlockInfo b : blocks) {
+      for (HddsBlockInfo b : blocks) {
         FSEditLogOp.blockToXml(contentHandler, b);
       }
       appendRpcIdsToXml(contentHandler, rpcClientId, rpcCallId);
@@ -1150,7 +1150,7 @@ public abstract class FSEditLogOp {
       this.path = st.getValue("PATH");
       List<Stanza> blocks = st.hasChildren("BLOCK") ?
           st.getChildren("BLOCK") : new ArrayList<Stanza>();
-      this.blocks = new HDDSBlockInfo[blocks.size()];
+      this.blocks = new HddsBlockInfo[blocks.size()];
       for (int i = 0; i < blocks.size(); i++) {
         this.blocks[i] = FSEditLogOp.blockFromXml(blocks.get(i));
       }
@@ -5311,7 +5311,7 @@ public abstract class FSEditLogOp {
     fromXml(st);
   }
   
-  public static void blockToXml(ContentHandler contentHandler, HDDSBlockInfo block)
+  public static void blockToXml(ContentHandler contentHandler, HddsBlockInfo block)
       throws SAXException {
     contentHandler.startElement("", "", "BLOCK", new AttributesImpl());
     XMLUtils.addSaxString(contentHandler, "CONTAINER_ID",
@@ -5325,13 +5325,13 @@ public abstract class FSEditLogOp {
     contentHandler.endElement("", "", "BLOCK");
   }
 
-  public static HDDSBlockInfo blockFromXml(Stanza st)
+  public static HddsBlockInfo blockFromXml(Stanza st)
       throws InvalidXmlException {
     long containerId = Long.parseLong(st.getValue("CONTAINER_ID"));
     long localId = Long.parseLong(st.getValue("LOCAL_ID"));
     long length = Long.parseLong(st.getValue("LENGTH"));
     long offset = Long.parseLong(st.getValue("OFFSET"));
-    return new HDDSBlockInfo.Builder()
+    return new HddsBlockInfo.Builder()
         .setBlockID(new BlockID(containerId, localId))
         .setLength(length)
         .setOffset(offset)

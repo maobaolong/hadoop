@@ -575,6 +575,8 @@ public interface BlockManager extends StoragePolicy, BlockStatsMXBean,
   BlockPlacementPolicy getBlockPlacementPolicy();
   void setBlockRecoveryTimeout(long blockRecoveryTimeout);
 
+  String getBlockPoolInfo();
+
   static LocatedBlock newLocatedBlock(
       ExtendedBlock b, DatanodeStorageInfo[] storages,
       long startOffset, boolean corrupt) {

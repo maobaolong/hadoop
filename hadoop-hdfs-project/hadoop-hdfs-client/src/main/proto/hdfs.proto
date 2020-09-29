@@ -613,7 +613,6 @@ message HDDSServerLocationInfoProto {
   required uint64 localId = 2;
   required uint64 length = 3;
   required uint64 offset = 4;
-  required uint64 createVersion = 5;
 }
 
 /**

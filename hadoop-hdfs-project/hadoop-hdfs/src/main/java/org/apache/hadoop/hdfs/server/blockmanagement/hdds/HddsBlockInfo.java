@@ -22,11 +22,9 @@ import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.UnknownPipelineStateException;
-import org.apache.hadoop.hdds.security.token.OzoneBlockTokenIdentifier;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
 import org.apache.hadoop.io.Writable;
-import org.apache.hadoop.security.token.Token;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -37,36 +35,26 @@ import java.util.Objects;
  * One key can be too huge to fit in one container. In which case it gets split
  * into a number of subkeys. This class represents one such subkey instance.
  */
-public final class HDDSBlockInfo extends BlockInfoContiguous
+public final class HddsBlockInfo extends BlockInfoContiguous
     implements Writable{
   private BlockID blockID;
   // the id of this subkey in all the subkeys.
   private long length;
   private long offset;
   // Block token, required for client authentication when security is enabled.
-  private Token<OzoneBlockTokenIdentifier> token;
+  // TODO(baoloongmao) take token back when we need.
+//  private Token<OzoneBlockTokenIdentifier> token;
   // the version number indicating when this block was added
-  private long createVersion;
 
-  private Pipeline pipeline;
-
-  public HDDSBlockInfo() {
-    super((short)0);
+  public HddsBlockInfo() {
+    super((short) 0);
   }
 
-  private HDDSBlockInfo(BlockID blockID, Pipeline pipeline, long length,
-      long offset, Token<OzoneBlockTokenIdentifier> token, long createVersion) {
-    super((short)length);
+  private HddsBlockInfo(BlockID blockID, long length, long offset) {
+    super((short) 0);
     this.blockID = blockID;
-    this.pipeline = pipeline;
     this.length = length;
     this.offset = offset;
-    this.token = token;
-    this.createVersion = createVersion;
-  }
-
-  public long getCreateVersion() {
-    return createVersion;
   }
 
   public BlockID getBlockID() {
@@ -79,10 +67,6 @@ public final class HDDSBlockInfo extends BlockInfoContiguous
 
   public long getLocalID() {
     return blockID.getLocalID();
-  }
-
-  public Pipeline getPipeline() {
-    return pipeline;
   }
 
   public long getLength() {
@@ -101,18 +85,6 @@ public final class HDDSBlockInfo extends BlockInfoContiguous
     return blockID.getBlockCommitSequenceId();
   }
 
-  public Token<OzoneBlockTokenIdentifier> getToken() {
-    return token;
-  }
-
-  public void setToken(Token<OzoneBlockTokenIdentifier> token) {
-    this.token = token;
-  }
-
-  public void setPipeline(Pipeline pipeline) {
-    this.pipeline = pipeline;
-  }
-
   /**
    * Builder of OmKeyLocationInfo.
    */
@@ -120,18 +92,9 @@ public final class HDDSBlockInfo extends BlockInfoContiguous
     private BlockID blockID;
     private long length;
     private long offset;
-    private Token<OzoneBlockTokenIdentifier> token;
-    private Pipeline pipeline;
-    private long createVersion;
 
     public Builder setBlockID(BlockID blockId) {
       this.blockID = blockId;
-      return this;
-    }
-
-    @SuppressWarnings("checkstyle:hiddenfield")
-    public Builder setPipeline(Pipeline pipeline) {
-      this.pipeline = pipeline;
       return this;
     }
 
@@ -145,19 +108,8 @@ public final class HDDSBlockInfo extends BlockInfoContiguous
       return this;
     }
 
-    public Builder setToken(Token<OzoneBlockTokenIdentifier> bToken) {
-      this.token = bToken;
-      return this;
-    }
-
-    public Builder setCreateVersion(long version) {
-      this.createVersion = version;
-      return this;
-    }
-
-    public HDDSBlockInfo build() {
-      return new HDDSBlockInfo(blockID, pipeline, length,
-          offset, token, createVersion);
+    public HddsBlockInfo build() {
+      return new HddsBlockInfo(blockID, length, offset);
     }
   }
 
@@ -167,19 +119,17 @@ public final class HDDSBlockInfo extends BlockInfoContiguous
         .setContainerId(blockID.getContainerID())
         .setLocalId(blockID.getLocalID())
         .setLength(getLength())
-        .setCreateVersion(createVersion)
         .setOffset(getOffset())
         .build();
   }
 
-  public static HDDSBlockInfo getFromProtobuf(
+  public static HddsBlockInfo getFromProtobuf(
       HdfsProtos.HDDSServerLocationInfoProto locationInfoProto) {
-    return new HDDSBlockInfo.Builder()
+    return new HddsBlockInfo.Builder()
         .setBlockID(new BlockID(locationInfoProto.getContainerId(),
             locationInfoProto.getLocalId()))
         .setLength(locationInfoProto.getLength())
         .setOffset(locationInfoProto.getOffset())
-        .setCreateVersion(locationInfoProto.getCreateVersion())
         .build();
   }
 
@@ -199,9 +149,7 @@ public final class HDDSBlockInfo extends BlockInfoContiguous
         ", localID=" + blockID.getLocalID() + "}" +
         ", length=" + length +
         ", offset=" + offset +
-        ", token=" + token +
-        ", pipeline=" + pipeline +
-        ", createVersion=" + createVersion + '}';
+        '}';
   }
 
   /////////////////////////////////////
@@ -222,7 +170,6 @@ public final class HDDSBlockInfo extends BlockInfoContiguous
     out.writeLong(blockID.getLocalID());
     out.writeLong(length);
     out.writeLong(offset);
-    out.writeLong(createVersion);
   }
 
   final void readHelper(DataInput in) throws IOException {
@@ -231,7 +178,6 @@ public final class HDDSBlockInfo extends BlockInfoContiguous
     this.blockID = new BlockID(containerID, localID);
     this.length = in.readLong();
     this.offset = in.readLong();
-    this.createVersion = in.readLong();
   }
 
   @Override
@@ -242,19 +188,15 @@ public final class HDDSBlockInfo extends BlockInfoContiguous
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    HDDSBlockInfo that = (HDDSBlockInfo) o;
+    HddsBlockInfo that = (HddsBlockInfo) o;
     return length == that.length &&
         offset == that.offset &&
-        createVersion == that.createVersion &&
-        Objects.equals(blockID, that.blockID) &&
-        Objects.equals(token, that.token) &&
-        Objects.equals(pipeline, that.pipeline);
+        Objects.equals(blockID, that.blockID);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(blockID, length, offset, token, createVersion,
-        pipeline);
+    return Objects.hash(blockID, length, offset);
   }
 
   public long getNumBytes() {

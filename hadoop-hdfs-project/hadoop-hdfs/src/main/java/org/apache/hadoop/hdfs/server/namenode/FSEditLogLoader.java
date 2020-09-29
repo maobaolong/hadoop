@@ -42,7 +42,7 @@ import org.apache.hadoop.hdfs.protocol.LastBlockWithStatus;
 import org.apache.hadoop.hdfs.protocol.LayoutVersion;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockIdManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
-import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.RollingUpgradeStartupOption;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.StartupOption;
@@ -1070,14 +1070,14 @@ public class FSEditLogLoader {
    */
   private void addNewBlock(AddBlockOp op, INodeFile file,
       ErasureCodingPolicy ecPolicy) throws IOException {
-    HDDSBlockInfo[] oldBlocks = file.getHddsBlocks();
-    HDDSBlockInfo pBlock = op.getPenultimateBlock();
-    HDDSBlockInfo newBlock= op.getLastBlock();
+    HddsBlockInfo[] oldBlocks = file.getHddsBlocks();
+    HddsBlockInfo pBlock = op.getPenultimateBlock();
+    HddsBlockInfo newBlock= op.getLastBlock();
     
     if (pBlock != null) { // the penultimate block is not null
       assert oldBlocks != null && oldBlocks.length > 0;
       // compare pBlock with the last block of oldBlocks
-      HDDSBlockInfo oldLastBlock = oldBlocks[oldBlocks.length - 1];
+      HddsBlockInfo oldLastBlock = oldBlocks[oldBlocks.length - 1];
 //      if (oldLastBlock.getBlockId() != pBlock.getBlockId()
 //          || oldLastBlock.getGenerationStamp() != pBlock.getGenerationStamp()) {
 //        throw new IOException(
@@ -1118,8 +1118,8 @@ public class FSEditLogLoader {
       INodesInPath iip, INodeFile file, ErasureCodingPolicy ecPolicy)
       throws IOException {
     // Update its block list
-    HDDSBlockInfo[] oldBlocks = file.getHddsBlocks();
-    HDDSBlockInfo[] newBlocks = op.getBlocks();
+    HddsBlockInfo[] oldBlocks = file.getHddsBlocks();
+    HddsBlockInfo[] newBlocks = op.getBlocks();
     String path = op.getPath();
     
     // Are we only updating the last block's gen stamp.
@@ -1127,8 +1127,8 @@ public class FSEditLogLoader {
     
     // First, update blocks in common
     for (int i = 0; i < oldBlocks.length && i < newBlocks.length; i++) {
-      HDDSBlockInfo oldBlock = oldBlocks[i];
-      HDDSBlockInfo newBlock = newBlocks[i];
+      HddsBlockInfo oldBlock = oldBlocks[i];
+      HddsBlockInfo newBlock = newBlocks[i];
       
       boolean isLastBlock = i == newBlocks.length - 1;
 //      if (oldBlock.getBlockId() != newBlock.getBlockId() ||
@@ -1168,7 +1168,7 @@ public class FSEditLogLoader {
         throw new IOException("Trying to remove more than one block from file "
             + path);
       }
-      HDDSBlockInfo oldBlock = oldBlocks[oldBlocks.length - 1];
+      HddsBlockInfo oldBlock = oldBlocks[oldBlocks.length - 1];
       boolean removed = FSDirWriteFileOp.unprotectedRemoveHDDSBlock(
           fsDir, path, iip, file, oldBlock);
       if (!removed && !(op instanceof UpdateBlocksOp)) {
@@ -1178,7 +1178,7 @@ public class FSEditLogLoader {
       final boolean isStriped = ecPolicy != null;
       // We're adding blocks
       for (int i = oldBlocks.length; i < newBlocks.length; i++) {
-        HDDSBlockInfo newBlock = newBlocks[i];
+        HddsBlockInfo newBlock = newBlocks[i];
 //        final BlockInfo newBI;
 //        if (!op.shouldCompleteLastBlock()) {
 //          // TODO: shouldn't this only be true for the last block?

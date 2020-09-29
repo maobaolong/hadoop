@@ -46,7 +46,7 @@ import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoStriped;
-import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockInfo;
 
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.protocol.BlockType;
@@ -283,12 +283,10 @@ public class FSDirWriteFileOp {
     INodesInPath inodesInPath = INodesInPath.fromINode(pendingFile);
     final INodeFile fileINode = inodesInPath.getLastINode().asFile();
 
-    HDDSBlockInfo info = new HDDSBlockInfo.Builder()
+    HddsBlockInfo info = new HddsBlockInfo.Builder()
         .setBlockID(allocatedBlock.getBlockID())
-        .setPipeline(allocatedBlock.getPipeline())
         .setLength(allocatedBlock.getLength())
         .setOffset(allocatedBlock.getOffset())
-        .setToken(allocatedBlock.getToken())
         .build();
     fileINode.addHDDSBlock(info);
     persistNewBlock(fsn, src, pendingFile);
@@ -997,10 +995,10 @@ public class FSDirWriteFileOp {
 
   static boolean unprotectedRemoveHDDSBlock(
       FSDirectory fsd, String path, INodesInPath iip, INodeFile fileNode,
-      HDDSBlockInfo block) throws IOException {
+      HddsBlockInfo block) throws IOException {
     // modify file-> block and blocksMap
     // fileNode should be under construction
-    HDDSBlockInfo lastBlock = fileNode.removeHDDSLastBlock(block);
+    HddsBlockInfo lastBlock = fileNode.removeHDDSLastBlock(block);
     if (lastBlock == null) {
       return false;
     }

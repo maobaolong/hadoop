@@ -28,7 +28,7 @@ import java.util.List;
 
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos;
 import org.apache.hadoop.hdfs.server.blockmanagement.*;
-import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.HadoopIllegalArgumentException;
@@ -317,10 +317,10 @@ public final class FSImageFormatPBINode {
 //        }
 //      }
 
-      HDDSBlockInfo[] blocks = new HDDSBlockInfo[bp.size()];
+      HddsBlockInfo[] blocks = new HddsBlockInfo[bp.size()];
       for (int i = 0; i < bp.size(); ++i) {
         HdfsProtos.HDDSServerLocationInfoProto b = bp.get(i);
-        blocks[i] = HDDSBlockInfo.getFromProtobuf(b);
+        blocks[i] = HddsBlockInfo.getFromProtobuf(b);
       }
 
       final PermissionStatus permissions = loadPermission(f.getPermission(),
@@ -640,10 +640,10 @@ public final class FSImageFormatPBINode {
     private void save(OutputStream out, INodeFile n) throws IOException {
       INodeSection.INodeFile.Builder b = buildINodeFile(n,
           parent.getSaverContext());
-      HDDSBlockInfo[] blocks = n.getHddsBlocks();
+      HddsBlockInfo[] blocks = n.getHddsBlocks();
 
       if (blocks != null) {
-        for (HDDSBlockInfo block : blocks) {
+        for (HddsBlockInfo block : blocks) {
           b.addHddsBlocks(block.getProtobuf());
         }
       }

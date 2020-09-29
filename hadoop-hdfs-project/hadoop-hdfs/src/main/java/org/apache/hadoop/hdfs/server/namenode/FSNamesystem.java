@@ -136,7 +136,7 @@ import org.apache.hadoop.hdfs.protocol.SnapshotDiffReportListing;
 import org.apache.hadoop.hdfs.protocol.SnapshotException;
 import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.protocol.ZoneReencryptionStatus;
-import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockManager;
 import org.apache.hadoop.hdfs.server.namenode.metrics.ReplicatedBlocksMBean;
 import org.apache.hadoop.hdfs.server.protocol.SlowDiskReports;
@@ -3588,7 +3588,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     assert hasWriteLock();
 //    Preconditions.checkArgument(fileINode.isUnderConstruction());
 //    blockManager.commitOrCompleteLastBlock(fileINode, commitBlock, iip);
-    HDDSBlockInfo lastBlock = fileINode.getLastHDDSBlock();
+    HddsBlockInfo lastBlock = fileINode.getLastHDDSBlock();
     if (lastBlock != null && commitBlock != null) {
       lastBlock.setLength(commitBlock.getLength());
     }
@@ -5077,7 +5077,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
 
   @Override  //NameNodeMXBean
   public String getBlockPoolInfo() {
-    return blockManager.getBlockPoolId();
+    return blockManager.getBlockPoolInfo();
   }
 
   // HA-only metric
