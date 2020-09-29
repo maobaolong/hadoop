@@ -26,10 +26,9 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
-import org.apache.hadoop.hdds.HDDSLocationInfo;
-import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos;
 import org.apache.hadoop.hdfs.server.blockmanagement.*;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.HadoopIllegalArgumentException;
@@ -38,13 +37,10 @@ import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.PermissionStatus;
 import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.fs.XAttr;
-import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos.BlockProto;
 import org.apache.hadoop.hdfs.protocolPB.PBHelperClient;
 import org.apache.hadoop.hdfs.protocol.BlockType;
-import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.namenode.FSImageFormatProtobuf.LoaderContext;
 import org.apache.hadoop.hdfs.server.namenode.FSImageFormatProtobuf.SaverContext;
 import org.apache.hadoop.hdfs.server.namenode.FsImageProto.FileSummary;
@@ -66,7 +62,6 @@ import org.apache.hadoop.hdfs.server.namenode.startupprogress.Step;
 import org.apache.hadoop.hdfs.util.EnumCounters;
 import org.apache.hadoop.hdfs.util.ReadOnlyList;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.protobuf.ByteString;
 
@@ -322,10 +317,10 @@ public final class FSImageFormatPBINode {
 //        }
 //      }
 
-      HDDSServerLocationInfo[] blocks = new HDDSServerLocationInfo[bp.size()];
+      HDDSBlockInfo[] blocks = new HDDSBlockInfo[bp.size()];
       for (int i = 0; i < bp.size(); ++i) {
         HdfsProtos.HDDSServerLocationInfoProto b = bp.get(i);
-        blocks[i] = HDDSServerLocationInfo.getFromProtobuf(b);
+        blocks[i] = HDDSBlockInfo.getFromProtobuf(b);
       }
 
       final PermissionStatus permissions = loadPermission(f.getPermission(),
@@ -645,10 +640,10 @@ public final class FSImageFormatPBINode {
     private void save(OutputStream out, INodeFile n) throws IOException {
       INodeSection.INodeFile.Builder b = buildINodeFile(n,
           parent.getSaverContext());
-      HDDSServerLocationInfo[] blocks = n.getHddsBlocks();
+      HDDSBlockInfo[] blocks = n.getHddsBlocks();
 
       if (blocks != null) {
-        for (HDDSServerLocationInfo block : blocks) {
+        for (HDDSBlockInfo block : blocks) {
           b.addHddsBlocks(block.getProtobuf());
         }
       }

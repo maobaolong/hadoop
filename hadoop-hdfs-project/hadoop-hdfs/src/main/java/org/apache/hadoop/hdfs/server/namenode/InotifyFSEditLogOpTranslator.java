@@ -22,7 +22,7 @@ import com.google.common.collect.Lists;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.hdfs.inotify.Event;
 import org.apache.hadoop.hdfs.inotify.EventBatch;
-import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
 import org.apache.hadoop.io.erasurecode.ErasureCodeConstants;
 
 import java.util.List;
@@ -35,7 +35,7 @@ public class InotifyFSEditLogOpTranslator {
 
   private static long getSize(FSEditLogOp.AddCloseOp acOp) {
     long size = 0;
-    for (HDDSServerLocationInfo b : acOp.getBlocks()) {
+    for (HDDSBlockInfo b : acOp.getBlocks()) {
       size += b.getNumBytes();
     }
     return size;

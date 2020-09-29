@@ -198,7 +198,7 @@ public class TestPendingReconstruction {
       cluster.waitActive();
 
       FSNamesystem fsn = cluster.getNamesystem();
-      HDFSBlockManager blkManager = (HDFSBlockManager)fsn.getBlockManager();
+      HdfsBlockManager blkManager = (HdfsBlockManager)fsn.getBlockManager();
 
       PendingReconstructionBlocks pendingReconstruction =
           blkManager.pendingReconstruction;
@@ -333,7 +333,7 @@ public class TestPendingReconstruction {
 
       DistributedFileSystem hdfs = cluster.getFileSystem();
       FSNamesystem fsn = cluster.getNamesystem();
-      HDFSBlockManager blkManager = (HDFSBlockManager)fsn.getBlockManager();
+      HdfsBlockManager blkManager = (HdfsBlockManager)fsn.getBlockManager();
 
       final String file = "/tmp.txt";
       final Path filePath = new Path(file);
@@ -435,7 +435,7 @@ public class TestPendingReconstruction {
     cluster.waitActive();
 
     FSNamesystem namesystem = cluster.getNamesystem();
-    HDFSBlockManager bm = (HDFSBlockManager)namesystem.getBlockManager();
+    HdfsBlockManager bm = (HdfsBlockManager)namesystem.getBlockManager();
     DistributedFileSystem fs = cluster.getFileSystem();
     try {
       // 1. create a file
@@ -501,7 +501,7 @@ public class TestPendingReconstruction {
     fsn.writeLock();
 
     try {
-      HDFSBlockManager bm = (HDFSBlockManager)fsn.getBlockManager();
+      HdfsBlockManager bm = (HdfsBlockManager)fsn.getBlockManager();
       BlocksMap blocksMap = bm.blocksMap;
 
       // create three blockInfo below, blockInfo0 will success, blockInfo1 will

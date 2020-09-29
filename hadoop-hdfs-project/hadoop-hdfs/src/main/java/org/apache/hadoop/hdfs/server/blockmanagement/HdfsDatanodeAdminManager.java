@@ -92,11 +92,11 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
  * This class depends on the FSNamesystem lock for synchronization.
  */
 @InterfaceAudience.Private
-public class HDFSDatanodeAdminManager implements DatanodeAdminManager{
+public class HdfsDatanodeAdminManager implements DatanodeAdminManager{
   private static final Logger LOG =
-      LoggerFactory.getLogger(HDFSDatanodeAdminManager.class);
+      LoggerFactory.getLogger(HdfsDatanodeAdminManager.class);
   private final Namesystem namesystem;
-  private final HDFSBlockManager blockManager;
+  private final HdfsBlockManager blockManager;
   private final HeartbeatManager hbManager;
   private final ScheduledExecutorService executor;
 
@@ -130,10 +130,10 @@ public class HDFSDatanodeAdminManager implements DatanodeAdminManager{
   private final Queue<DatanodeDescriptor> pendingNodes;
   private Monitor monitor = null;
 
-  HDFSDatanodeAdminManager(final Namesystem namesystem,
+  HdfsDatanodeAdminManager(final Namesystem namesystem,
       final BlockManager blockManager, final HeartbeatManager hbManager) {
     this.namesystem = namesystem;
-    this.blockManager = (HDFSBlockManager) blockManager;
+    this.blockManager = (HdfsBlockManager) blockManager;
     this.hbManager = hbManager;
 
     executor = Executors.newScheduledThreadPool(1,

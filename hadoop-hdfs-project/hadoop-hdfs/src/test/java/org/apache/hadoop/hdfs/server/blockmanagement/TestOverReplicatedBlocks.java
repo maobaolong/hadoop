@@ -93,8 +93,8 @@ public class TestOverReplicatedBlocks {
          
       final FSNamesystem namesystem = cluster.getNamesystem();
       final BlockManager bm = namesystem.getBlockManager();
-      final HDFSHeartbeatManager hm =
-          (HDFSHeartbeatManager)bm.getDatanodeManager().getHeartbeatManager();
+      final HdfsHeartbeatManager hm =
+          (HdfsHeartbeatManager)bm.getDatanodeManager().getHeartbeatManager();
       try {
         namesystem.writeLock();
         synchronized(hm) {
@@ -153,8 +153,8 @@ public class TestOverReplicatedBlocks {
       cluster = new MiniDFSCluster.Builder(conf).numDataNodes(3).build();
       fs = cluster.getFileSystem();
       final FSNamesystem namesystem = cluster.getNamesystem();
-      final HDFSBlockManager bm =
-          (HDFSBlockManager)namesystem.getBlockManager();
+      final HdfsBlockManager bm =
+          (HdfsBlockManager)namesystem.getBlockManager();
 
       conf.setLong(DFSConfigKeys.DFS_HEARTBEAT_INTERVAL_KEY, 300);
       cluster.startDataNodes(conf, 1, true, null, null, null);

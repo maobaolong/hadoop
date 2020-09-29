@@ -31,7 +31,7 @@ import org.apache.hadoop.util.LightWeightGSet;
  * block's metadata currently includes blockCollection it belongs to and
  * the datanodes that store the block.
  */
-class BlocksMap {
+public class BlocksMap {
 
   /** Constant {@link LightWeightGSet} capacity. */
   private final int capacity;
@@ -41,7 +41,7 @@ class BlocksMap {
   private final LongAdder totalReplicatedBlocks = new LongAdder();
   private final LongAdder totalECBlockGroups = new LongAdder();
 
-  BlocksMap(int capacity) {
+  public BlocksMap(int capacity) {
     // Use 2% of total memory to size the GSet capacity
     this.capacity = capacity;
     this.blocks = new LightWeightGSet<Block, BlockInfo>(capacity) {
@@ -77,7 +77,7 @@ class BlocksMap {
   /**
    * Add block b belonging to the specified block collection to the map.
    */
-  BlockInfo addBlockCollection(BlockInfo b, BlockCollection bc) {
+  public BlockInfo addBlockCollection(BlockInfo b, BlockCollection bc) {
     BlockInfo info = blocks.get(b);
     if (info != b) {
       info = b;

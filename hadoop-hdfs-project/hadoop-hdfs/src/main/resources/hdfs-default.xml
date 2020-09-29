@@ -5304,4 +5304,12 @@
       octal or symbolic.
     </description>
   </property>
+
+  <property>
+    <name>dfs.namenode.blockmanager.class</name>
+    <value>org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockManager</value>
+    <description>
+      Default block manager implementation class
+    </description>
+  </property>
 </configuration>

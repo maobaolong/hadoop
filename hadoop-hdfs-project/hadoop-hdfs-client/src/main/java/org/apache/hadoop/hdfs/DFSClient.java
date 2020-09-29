@@ -94,7 +94,7 @@ import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsCreateModes;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.ha.HAServiceProtocol;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.NameNodeProxiesClient.ProxyAndInfo;
 import org.apache.hadoop.hdfs.client.HdfsClientConfigKeys;
@@ -3211,8 +3211,8 @@ public class DFSClient implements java.io.Closeable, RemotePeerFactory,
     return namenode.getHAServiceState();
   }
 
-  public HDDSLocationInfo allocateBlock(String src,
-      String clientName, HDDSLocationInfo previousBlock,
+  public HDDSLocatedBlock allocateBlock(String src,
+      String clientName, HDDSLocatedBlock previousBlock,
       ExcludeList excludeList, long fileId,
       long clientId)
       throws IOException {

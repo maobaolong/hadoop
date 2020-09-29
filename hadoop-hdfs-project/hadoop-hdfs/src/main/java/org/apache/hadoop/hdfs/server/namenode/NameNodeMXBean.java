@@ -303,5 +303,8 @@ public interface NameNodeMXBean {
    */
   String getNameDirSize();
 
-  String getScmId();
+  /*
+   * Get block pool info
+   */
+  String getBlockPoolInfo();
 }

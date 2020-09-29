@@ -59,6 +59,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.AddBlockFlag;
 import org.apache.hadoop.fs.FileEncryptionInfo;
 import org.apache.hadoop.fs.StorageType;
+import org.apache.hadoop.hdfs.HAUtil;
 import org.apache.hadoop.hdfs.protocol.BlockStoragePolicy;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSUtil;
@@ -154,7 +155,7 @@ import com.google.common.base.Preconditions;
  * replicas + maintenance replicas.
  */
 @InterfaceAudience.Private
-public class HDFSBlockManager implements BlockManager {
+public class HdfsBlockManager implements BlockManager {
 
   private static final String QUEUE_REASON_CORRUPT_STATE =
     "it has the wrong state or generation stamp";
@@ -438,10 +439,10 @@ public class HDFSBlockManager implements BlockManager {
   /** Storages accessible from multiple DNs. */
   private final ProvidedStorageMap providedStorageMap;
 
-  public HDFSBlockManager(final Namesystem namesystem, boolean haEnabled,
+  public HdfsBlockManager(final Namesystem namesystem,
       final Configuration conf) throws IOException {
     this.namesystem = namesystem;
-    datanodeManager = new HDFSDatanodeManager(this, namesystem, conf);
+    datanodeManager = new HdfsDatanodeManager(this, namesystem, conf);
     heartbeatManager = datanodeManager.getHeartbeatManager();
     this.blockIdManager = new BlockIdManager(this);
     blocksPerPostpondedRescan = (int)Math.min(Integer.MAX_VALUE,
@@ -567,6 +568,9 @@ public class HDFSBlockManager implements BlockManager {
     pendingRecoveryBlocks = new PendingRecoveryBlocks(blockRecoveryTimeout);
 
     this.blockReportLeaseManager = new BlockReportLeaseManager(conf);
+
+    String nameserviceId = DFSUtil.getNamenodeNameServiceId(conf);
+    boolean haEnabled = HAUtil.isHAEnabled(conf, nameserviceId);
 
     bmSafeMode = new BlockManagerSafeMode(this, namesystem, haEnabled, conf);
 
@@ -1093,7 +1097,6 @@ public class HDFSBlockManager implements BlockManager {
   /**
    * Convert a specified block of the file to a complete block.
    * Skips validity checking and safe mode block total updates; use
-   * {@link BlockManager#completeBlock} to include these.
    * @param curBlock - block to be completed
    * @param iip - INodes in path to file containing curBlock; if null,
    *              this will be resolved internally

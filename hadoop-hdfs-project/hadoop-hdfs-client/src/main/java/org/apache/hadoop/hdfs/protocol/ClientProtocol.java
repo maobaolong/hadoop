@@ -28,9 +28,9 @@ import org.apache.hadoop.crypto.CryptoProtocolVersion;
 import org.apache.hadoop.fs.BatchedRemoteIterator.BatchedEntries;
 import org.apache.hadoop.fs.PathIsNotEmptyDirectoryException;
 import org.apache.hadoop.ha.HAServiceProtocol;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.AddBlockFlag;
 import org.apache.hadoop.fs.CacheFlag;
@@ -1835,13 +1835,13 @@ public interface ClientProtocol {
   }
 
   default boolean completeHDDSFile(String src, String clientName,
-                        HDDSLocationInfo previousBlock, long fileId)
+                                   HDDSLocatedBlock previousBlock, long fileId)
       throws IOException {
     return true;
   }
 
-  default HDDSLocationInfo allocateBlock(String src, String clientName,
-      HDDSLocationInfo previousBlock, ExcludeList excludeList, long fileId,
+  default HDDSLocatedBlock allocateBlock(String src, String clientName,
+      HDDSLocatedBlock previousBlock, ExcludeList excludeList, long fileId,
       long clientId)
       throws IOException {
     return null;

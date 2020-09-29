@@ -19,7 +19,7 @@ package org.apache.hadoop.fs.hddsdfs;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.XceiverClientManager;
@@ -67,7 +67,7 @@ public class BlockOutputStreamEntryPool {
   private final ExcludeList excludeList;
 
   private final String src;
-  private HDDSLocationInfo currentBlock;
+  private HDDSLocatedBlock currentBlock;
 
   @SuppressWarnings({"parameternumber", "squid:S00107"})
   public BlockOutputStreamEntryPool(DFSClient dfsClient,
@@ -150,7 +150,7 @@ public class BlockOutputStreamEntryPool {
     stat = null;
   }
 
-  private void addKeyLocationInfo(HDDSLocationInfo hddsLocationInfo)
+  private void addKeyLocationInfo(HDDSLocatedBlock hddsLocationInfo)
       throws IOException {
     Preconditions.checkNotNull(hddsLocationInfo.getPipeline());
     UserGroupInformation.getCurrentUser().addToken(hddsLocationInfo.getToken());
@@ -176,15 +176,15 @@ public class BlockOutputStreamEntryPool {
     this.currentBlock = hddsLocationInfo;
   }
 
-  public List<HDDSLocationInfo> getLocationInfoList()  {
-    List<HDDSLocationInfo> locationInfoList = new ArrayList<>();
+  public List<HDDSLocatedBlock> getLocationInfoList()  {
+    List<HDDSLocatedBlock> locationInfoList = new ArrayList<>();
     for (BlockOutputStreamEntry streamEntry : streamEntries) {
       long length = streamEntry.getCurrentPosition();
 
       // Commit only those blocks to OzoneManager which are not empty
       if (length != 0) {
-        HDDSLocationInfo info =
-            new HDDSLocationInfo.Builder().setBlockID(streamEntry.getBlockID())
+        HDDSLocatedBlock info =
+            new HDDSLocatedBlock.Builder().setBlockID(streamEntry.getBlockID())
                 .setLength(streamEntry.getCurrentPosition()).setOffset(0)
                 .setToken(streamEntry.getToken())
                 .setPipeline(streamEntry.getPipeline()).build();
@@ -261,7 +261,7 @@ public class BlockOutputStreamEntryPool {
           streamEntries.get(streamEntries.size() - 1).getCurrentPosition();
       currentBlock.setLength(lastBlockLength);
     }
-    HDDSLocationInfo hddsLocationInfo =
+    HDDSLocatedBlock hddsLocationInfo =
         dfsClient.allocateBlock(src, dfsClient.getClientName(), currentBlock,
             excludeList, stat.getFileId(), openID);
     addKeyLocationInfo(hddsLocationInfo);

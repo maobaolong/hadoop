@@ -15,14 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hadoop.hdfs.server.blockmanagement.hddsblockmanager;
+package org.apache.hadoop.hdfs.server.blockmanagement.hdds;
 
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.fs.FileEncryptionInfo;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
+import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor;
 
 import java.util.ArrayList;
@@ -31,18 +32,18 @@ import java.util.List;
 
 @InterfaceAudience.Private
 @InterfaceStability.Unstable
-class HDDSLocatedBlockBuilder {
+class HddsLocatedBlockBuilder {
 
   protected long flen;
-  protected List<HDDSLocationInfo> blocks = Collections.emptyList();
+  protected List<LocatedBlock> blocks = Collections.emptyList();
   protected boolean isUC;
-  protected HDDSLocationInfo last;
+  protected HDDSLocatedBlock last;
   protected boolean lastComplete;
   protected FileEncryptionInfo feInfo;
   private final int maxBlocks;
   protected ErasureCodingPolicy ecPolicy;
 
-  HDDSLocatedBlockBuilder(int maxBlocks) {
+  HddsLocatedBlockBuilder(int maxBlocks) {
     this.maxBlocks = maxBlocks;
   }
 
@@ -50,12 +51,12 @@ class HDDSLocatedBlockBuilder {
     return blocks.size() >= maxBlocks;
   }
 
-  HDDSLocatedBlockBuilder fileLength(long fileLength) {
+  HddsLocatedBlockBuilder fileLength(long fileLength) {
     flen = fileLength;
     return this;
   }
 
-  HDDSLocatedBlockBuilder addBlock(HDDSLocationInfo block) {
+  HddsLocatedBlockBuilder addBlock(HDDSLocatedBlock block) {
     if (blocks.isEmpty()) {
       blocks = new ArrayList<>();
     }
@@ -63,27 +64,27 @@ class HDDSLocatedBlockBuilder {
     return this;
   }
 
-  HDDSLocatedBlockBuilder lastUC(boolean underConstruction) {
+  HddsLocatedBlockBuilder lastUC(boolean underConstruction) {
     isUC = underConstruction;
     return this;
   }
 
-  HDDSLocatedBlockBuilder lastBlock(HDDSLocationInfo block) {
+  HddsLocatedBlockBuilder lastBlock(HDDSLocatedBlock block) {
     last = block;
     return this;
   }
 
-  HDDSLocatedBlockBuilder lastComplete(boolean complete) {
+  HddsLocatedBlockBuilder lastComplete(boolean complete) {
     lastComplete = complete;
     return this;
   }
 
-  HDDSLocatedBlockBuilder encryption(FileEncryptionInfo fileEncryptionInfo) {
+  HddsLocatedBlockBuilder encryption(FileEncryptionInfo fileEncryptionInfo) {
     feInfo = fileEncryptionInfo;
     return this;
   }
 
-  HDDSLocatedBlockBuilder erasureCoding(ErasureCodingPolicy codingPolicy) {
+  HddsLocatedBlockBuilder erasureCoding(ErasureCodingPolicy codingPolicy) {
     ecPolicy = codingPolicy;
     return this;
   }

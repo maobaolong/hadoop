@@ -138,6 +138,31 @@ public class ReflectionUtils {
     return result;
   }
 
+  /** Create an object for the given class and initialize it from conf
+   *
+   * @param theClass class of which an object is created
+   * @param conf Configuration
+   * @return a new object
+   */
+  @SuppressWarnings("unchecked")
+  public static <T> T newInstance(Class<T> theClass, Configuration conf,
+      Class<?>[] args, Object ... values) {
+    T result;
+    try {
+      Constructor<T> meth = (Constructor<T>) CONSTRUCTOR_CACHE.get(theClass);
+      if (meth == null) {
+        meth = theClass.getDeclaredConstructor(args);
+        meth.setAccessible(true);
+        CONSTRUCTOR_CACHE.put(theClass, meth);
+      }
+      result = meth.newInstance(values);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+    setConf(result, conf);
+    return result;
+  }
+
   static private ThreadMXBean threadBean = 
     ManagementFactory.getThreadMXBean();
     

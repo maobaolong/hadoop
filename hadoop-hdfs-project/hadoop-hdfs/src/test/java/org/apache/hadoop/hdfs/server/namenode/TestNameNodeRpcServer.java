@@ -29,6 +29,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 
@@ -44,6 +45,7 @@ public class TestNameNodeRpcServer {
     // We can set the bind address to 0.0.0.0 to make it listen
     // to all interfaces.
     conf.set(DFS_NAMENODE_RPC_BIND_HOST_KEY, "0.0.0.0");
+    conf.set(ScmConfigKeys.OZONE_SCM_NAMES, "localhost");
     MiniDFSCluster cluster = null;
 
     try {

@@ -142,7 +142,7 @@ public class TestBlockManager {
       LoggerFactory.getLogger(TestBlockManager.class);
 
   private FSNamesystem fsn;
-  private HDFSBlockManager bm;
+  private HdfsBlockManager bm;
   private long mockINodeId;
 
 
@@ -161,7 +161,7 @@ public class TestBlockManager {
     Mockito.when(haContext.getState()).thenReturn(haState);
     Mockito.when(haState.shouldPopulateReplQueues()).thenReturn(true);
     Mockito.when(fsn.getHAContext()).thenReturn(haContext);
-    bm = new HDFSBlockManager(fsn, false, conf);
+    bm = new HdfsBlockManager(fsn, conf);
     CacheManager cm = Mockito.mock(CacheManager.class);
     Mockito.doReturn(cm).when(fsn).getCacheManager();
     GSet<CachedBlock, CachedBlock> cb =
@@ -193,7 +193,7 @@ public class TestBlockManager {
       dn.updateHeartbeat(
           BlockManagerTestUtil.getStorageReportsForDatanode(dn), 0L, 0L, 0, 0,
           null);
-      ((HDFSDatanodeManager)bm.getDatanodeManager())
+      ((HdfsDatanodeManager)bm.getDatanodeManager())
           .checkIfClusterIsNowMultiRack(dn);
     }
   }
@@ -454,8 +454,8 @@ public class TestBlockManager {
     MiniDFSCluster cluster = new MiniDFSCluster.Builder(conf).build();
     try {
       cluster.waitActive();
-      HDFSBlockManager bm =
-          (HDFSBlockManager)cluster.getNamesystem().getBlockManager();
+      HdfsBlockManager bm =
+          (HdfsBlockManager)cluster.getNamesystem().getBlockManager();
       FileSystem fs = cluster.getFileSystem();
       NamenodeProtocols namenode = cluster.getNameNodeRpc();
       DFSOutputStream out = null;
@@ -1076,7 +1076,7 @@ public class TestBlockManager {
     try {
       cluster.waitActive();
       final FSNamesystem fsn = cluster.getNamesystem();
-      final HDFSBlockManager bm = (HDFSBlockManager)fsn.getBlockManager();
+      final HdfsBlockManager bm = (HdfsBlockManager)fsn.getBlockManager();
       final ExecutorService executor = Executors.newCachedThreadPool();
 
       final CyclicBarrier startBarrier = new CyclicBarrier(2);
@@ -1239,8 +1239,8 @@ public class TestBlockManager {
         new MiniDFSCluster.Builder(conf).numDataNodes(4).build();
     try {
       cluster.waitActive();
-      HDFSBlockManager blockManager =
-          (HDFSBlockManager)cluster.getNamesystem().getBlockManager();
+      HdfsBlockManager blockManager =
+          (HdfsBlockManager)cluster.getNamesystem().getBlockManager();
       FileSystem fs = cluster.getFileSystem();
       final Path filePath = new Path("/tmp.txt");
       final long fileLen = 1L;
@@ -1359,7 +1359,7 @@ public class TestBlockManager {
 
   @Test
   public void testIsReplicaCorruptCall() throws Exception {
-    HDFSBlockManager spyBM = spy(bm);
+    HdfsBlockManager spyBM = spy(bm);
     List<DatanodeStorageInfo> origStorages = getStorages(0, 1, 3);
     List<DatanodeDescriptor> origNodes = getNodes(origStorages);
     BlockInfo blockInfo = addBlockOnNodes(0, origNodes);

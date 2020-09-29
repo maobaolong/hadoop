@@ -2,17 +2,19 @@ package org.apache.hadoop.hdds;
 
 import org.apache.hadoop.fs.FileEncryptionInfo;
 import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
+import org.apache.hadoop.hdfs.protocol.LocatedBlock;
+import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-public class HDDSLocatedBlocks {
+public class HDDSLocatedBlocks extends LocatedBlocks {
   private final long fileLength;
   // array of blocks with prioritized locations
-  private final List<HDDSLocationInfo> blocks;
+  private final List<LocatedBlock> blocks;
   private final boolean underConstruction;
-  private final HDDSLocationInfo lastLocatedBlock;
+  private final HDDSLocatedBlock lastLocatedBlock;
   private final boolean isLastBlockComplete;
   private final FileEncryptionInfo fileEncryptionInfo;
   private final ErasureCodingPolicy ecPolicy;
@@ -28,7 +30,7 @@ public class HDDSLocatedBlocks {
   }
 
   public HDDSLocatedBlocks(long flength, boolean isUnderConstuction,
-                       List<HDDSLocationInfo> blks, HDDSLocationInfo lastBlock,
+                       List<LocatedBlock> blks, HDDSLocatedBlock lastBlock,
                        boolean isLastBlockCompleted, FileEncryptionInfo feInfo,
                        ErasureCodingPolicy ecPolicy) {
     fileLength = flength;
@@ -43,12 +45,12 @@ public class HDDSLocatedBlocks {
   /**
    * Get located blocks.
    */
-  public List<HDDSLocationInfo> getLocatedBlocks() {
+  public List<LocatedBlock> getLocatedBlocks() {
     return blocks;
   }
 
   /** Get the last located block. */
-  public HDDSLocationInfo getLastLocatedBlock() {
+  public HDDSLocatedBlock getLastLocatedBlock() {
     return lastLocatedBlock;
   }
 
@@ -60,7 +62,7 @@ public class HDDSLocatedBlocks {
   /**
    * Get located block.
    */
-  public HDDSLocationInfo get(int index) {
+  public LocatedBlock get(int index) {
     return blocks.get(index);
   }
 
@@ -107,19 +109,19 @@ public class HDDSLocatedBlocks {
    */
   public int findBlock(long offset) {
     // create fake block of size 0 as a key
-    HDDSLocationInfo key = new HDDSLocationInfo.Builder()
+    LocatedBlock key = new HDDSLocatedBlock.Builder()
         .setOffset(offset)
         .setLength(1)
         .build();
-    Comparator<HDDSLocationInfo> comp =
-        new Comparator<HDDSLocationInfo>() {
+    Comparator<LocatedBlock> comp =
+        new Comparator<LocatedBlock>() {
           // Returns 0 iff a is inside b or b is inside a
           @Override
-          public int compare(HDDSLocationInfo a, HDDSLocationInfo b) {
-            long aBeg = a.getOffset();
-            long bBeg = b.getOffset();
-            long aEnd = aBeg + a.getLength();
-            long bEnd = bBeg + b.getLength();
+          public int compare(LocatedBlock a, LocatedBlock b) {
+            long aBeg = ((HDDSLocatedBlock)a).getOffset();
+            long bBeg = ((HDDSLocatedBlock)b).getOffset();
+            long aEnd = aBeg + ((HDDSLocatedBlock)a).getLength();
+            long bEnd = bBeg + ((HDDSLocatedBlock)b).getLength();
             if(aBeg <= bBeg && bEnd <= aEnd
                 || bBeg <= aBeg && aEnd <= bEnd)
               return 0; // one of the blocks is inside the other
@@ -131,18 +133,20 @@ public class HDDSLocatedBlocks {
     return Collections.binarySearch(blocks, key, comp);
   }
 
-  public void insertRange(int blockIdx, List<HDDSLocationInfo> newBlocks) {
+  @Override
+  public void insertRange(int blockIdx, List<LocatedBlock> newBlocks) {
     int oldIdx = blockIdx;
     int insStart = 0, insEnd = 0;
     for(int newIdx = 0; newIdx < newBlocks.size() && oldIdx < blocks.size();
         newIdx++) {
-      long newOff = newBlocks.get(newIdx).getOffset();
-      long oldOff = blocks.get(oldIdx).getOffset();
+      HDDSLocatedBlock block = ((HDDSLocatedBlock)newBlocks.get(newIdx));
+      long newOff = block.getOffset();
+      long oldOff = ((HDDSLocatedBlock)blocks.get(oldIdx)).getOffset();
       if(newOff < oldOff) {
         insEnd++;
       } else if(newOff == oldOff) {
         // replace old cached block by the new one
-        blocks.set(oldIdx, newBlocks.get(newIdx));
+        blocks.set(oldIdx, block);
         if(insStart < insEnd) { // insert new blocks
           blocks.addAll(oldIdx, newBlocks.subList(insStart, insEnd));
           oldIdx += insEnd - insStart;

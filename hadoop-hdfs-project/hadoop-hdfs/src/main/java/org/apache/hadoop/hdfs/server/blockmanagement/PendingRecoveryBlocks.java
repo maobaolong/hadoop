@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  * and retry only after the timeout for a recovery has expired.
  */
 class PendingRecoveryBlocks {
-  private static final Logger LOG = HDFSBlockManager.LOG;
+  private static final Logger LOG = HdfsBlockManager.LOG;
 
   /** List of recovery attempts per block and the time they expire. */
   private final LightWeightHashSet<BlockRecoveryAttempt> recoveryTimeouts =

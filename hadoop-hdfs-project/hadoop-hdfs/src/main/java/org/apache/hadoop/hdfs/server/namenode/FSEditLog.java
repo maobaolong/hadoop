@@ -44,7 +44,7 @@ import org.apache.hadoop.hdfs.protocol.CacheDirectiveInfo;
 import org.apache.hadoop.hdfs.protocol.CachePoolInfo;
 import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
-import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.NamenodeRole;
 import org.apache.hadoop.hdfs.server.common.Storage.FormatConfirmable;
@@ -854,10 +854,10 @@ public class FSEditLog implements LogsPurgeable {
   
   public void logAddBlock(String path, INodeFile file) {
     Preconditions.checkArgument(file.isUnderConstruction());
-    HDDSServerLocationInfo[] blocks = file.getHddsBlocks();
+    HDDSBlockInfo[] blocks = file.getHddsBlocks();
     Preconditions.checkState(blocks != null && blocks.length > 0);
-    HDDSServerLocationInfo pBlock = blocks.length > 1 ? blocks[blocks.length - 2] : null;
-    HDDSServerLocationInfo lastBlock = blocks[blocks.length - 1];
+    HDDSBlockInfo pBlock = blocks.length > 1 ? blocks[blocks.length - 2] : null;
+    HDDSBlockInfo lastBlock = blocks[blocks.length - 1];
     AddBlockOp op = AddBlockOp.getInstance(cache.get()).setPath(path)
         .setPenultimateBlock(pBlock).setLastBlock(lastBlock);
     logEdit(op);

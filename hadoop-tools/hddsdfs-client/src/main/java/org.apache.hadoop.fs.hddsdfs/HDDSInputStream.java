@@ -24,11 +24,12 @@ import org.apache.hadoop.fs.FSInputStream;
 import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.scm.XceiverClientManager;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.storage.BlockInputStream;
+import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -93,14 +94,14 @@ public class HDDSInputStream extends FSInputStream implements Seekable {
   }
 
   private synchronized void initialize(String src,
-      List<HDDSLocationInfo> blockInfos,
+      List<LocatedBlock> blockInfos,
       XceiverClientManager xceiverClientManager,
       boolean verifyChecksum, Function<String, HDDSFileStatus> retryFunction) {
     this.key = src;
     this.blockOffsets = new long[blockInfos.size()];
     long keyLength = 0;
     for (int i = 0; i < blockInfos.size(); i++) {
-      HDDSLocationInfo omKeyLocationInfo = blockInfos.get(i);
+      HDDSLocatedBlock omKeyLocationInfo = (HDDSLocatedBlock)blockInfos.get(i);
       if (LOG.isDebugEnabled()) {
         LOG.debug("Adding stream for accessing {}. The stream will be " +
             "initialized later.", omKeyLocationInfo);
@@ -112,13 +113,13 @@ public class HDDSInputStream extends FSInputStream implements Seekable {
           verifyChecksum, keyLocationInfo -> {
             HDDSFileStatus newKeyInfo = retryFunction.apply(src);
             BlockID blockID = keyLocationInfo.getBlockID();
-            List<HDDSLocationInfo> collect =
+            List<LocatedBlock> collect =
                 newKeyInfo.getHDDSLocatedBlocks().getLocatedBlocks()
                 .stream()
-                .filter(l -> l.getBlockID().equals(blockID))
+                .filter(l -> ((HDDSLocatedBlock)l).getBlockID().equals(blockID))
                 .collect(Collectors.toList());
             if (CollectionUtils.isNotEmpty(collect)) {
-              return collect.get(0).getPipeline();
+              return ((HDDSLocatedBlock)collect.get(0)).getPipeline();
             } else {
               return null;
             }
@@ -136,10 +137,10 @@ public class HDDSInputStream extends FSInputStream implements Seekable {
    * BlockInputStream is initialized when a read operation is performed on
    * the block for the first time.
    */
-  private synchronized void addStream(HDDSLocationInfo blockInfo,
+  private synchronized void addStream(HDDSLocatedBlock blockInfo,
       XceiverClientManager xceiverClientMngr,
       boolean verifyChecksum,
-      Function<HDDSLocationInfo, Pipeline> refreshPipelineFunction) {
+      Function<HDDSLocatedBlock, Pipeline> refreshPipelineFunction) {
     blockStreams.add(new BlockInputStream(blockInfo.getBlockID(),
         blockInfo.getLength(), blockInfo.getPipeline(), blockInfo.getToken(),
         verifyChecksum, xceiverClientMngr,

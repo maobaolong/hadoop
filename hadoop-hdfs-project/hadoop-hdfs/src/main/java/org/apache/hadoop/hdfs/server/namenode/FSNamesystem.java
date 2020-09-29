@@ -93,7 +93,7 @@ import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_NAMENODE_SNAPSHOT_DIFF_LI
 
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 
 import static org.apache.hadoop.hdfs.DFSConfigKeys.DFS_STORAGE_POLICY_ENABLED_KEY;
@@ -136,9 +136,8 @@ import org.apache.hadoop.hdfs.protocol.SnapshotDiffReportListing;
 import org.apache.hadoop.hdfs.protocol.SnapshotException;
 import org.apache.hadoop.hdfs.protocol.SnapshottableDirectoryStatus;
 import org.apache.hadoop.hdfs.protocol.ZoneReencryptionStatus;
-import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
-import org.apache.hadoop.hdfs.server.blockmanagement.hddsblockmanager.HDDSBlockManager;
-import org.apache.hadoop.hdfs.server.blockmanagement.HDFSBlockManager;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockManager;
 import org.apache.hadoop.hdfs.server.namenode.metrics.ReplicatedBlocksMBean;
 import org.apache.hadoop.hdfs.server.protocol.SlowDiskReports;
 
@@ -474,7 +473,6 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   /** The namespace tree. */
   FSDirectory dir;
   private BlockManager blockManager;
-  private HDDSBlockManager hddsBlockManager;
   private final SnapshotManager snapshotManager;
   private final CacheManager cacheManager;
   private final DatanodeStatistics datanodeStatistics;
@@ -643,7 +641,6 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     cacheManager.clear();
     setImageLoaded(false);
     blockManager.clear();
-    hddsBlockManager.clear();
     ErasureCodingPolicyManager.getInstance().clear();
   }
 
@@ -810,10 +807,15 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       }
 
       // block manager needs the haEnabled initialized
-      this.blockManager = new HDFSBlockManager(this, haEnabled, conf);
-      this.hddsBlockManager = new HDDSBlockManager(this, haEnabled, conf);
+      Class<? extends BlockManager> blockManagerClass = conf.getClass(
+          DFSConfigKeys.DFS_NAMENODE_BLOCKMANAGER_CLASS,
+          HddsBlockManager.class, BlockManager.class);
 
-      this.datanodeStatistics = blockManager.getDatanodeManager().getDatanodeStatistics();
+      this.blockManager = ReflectionUtils.newInstance(blockManagerClass, conf,
+          new Class[]{FSNamesystem.class, Configuration.class}, this, conf);
+
+      this.datanodeStatistics =
+          blockManager.getDatanodeManager().getDatanodeStatistics();
 
       // Get the checksum type from config
       String checksumTypeStr = conf.get(DFS_CHECKSUM_TYPE_KEY,
@@ -1384,8 +1386,10 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
         cacheManager.clearDirectiveStats();
       }
       if (blockManager != null) {
-        blockManager.getDatanodeManager().clearPendingCachingCommands();
-        blockManager.getDatanodeManager().setShouldSendCachingCommands(false);
+        if (blockManager.getDatanodeManager() != null) {
+          blockManager.getDatanodeManager().clearPendingCachingCommands();
+          blockManager.getDatanodeManager().setShouldSendCachingCommands(false);
+        }
         // Don't want to keep replication queues when not in Active.
         blockManager.clearQueues();
         blockManager.setInitializedReplQueues(false);
@@ -3580,11 +3584,11 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
 
   void hddsCommitOrCompleteLastBlock(
       final INodeFile fileINode, final INodesInPath iip,
-      final HDDSLocationInfo commitBlock) throws IOException {
+      final HDDSLocatedBlock commitBlock) throws IOException {
     assert hasWriteLock();
 //    Preconditions.checkArgument(fileINode.isUnderConstruction());
 //    blockManager.commitOrCompleteLastBlock(fileINode, commitBlock, iip);
-    HDDSServerLocationInfo lastBlock = fileINode.getLastHDDSBlock();
+    HDDSBlockInfo lastBlock = fileINode.getLastHDDSBlock();
     if (lastBlock != null && commitBlock != null) {
       lastBlock.setLength(commitBlock.getLength());
     }
@@ -4676,14 +4680,16 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
 
   @Override
   public boolean isInSafeMode() {
-    return isInManualOrResourceLowSafeMode() ||
+    boolean ret = isInManualOrResourceLowSafeMode() ||
         blockManager.getSafeModeManager().isInSafeMode();
+    return ret;
   }
 
   @Override
   public boolean isInStartupSafeMode() {
-    return !isInManualOrResourceLowSafeMode() &&
+    boolean ret = !isInManualOrResourceLowSafeMode() &&
         blockManager.getSafeModeManager().isInSafeMode();
+    return ret;
   }
 
   /**
@@ -5070,8 +5076,8 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   }
 
   @Override  //NameNodeMXBean
-  public String getScmId() {
-    return getHDDSBlockManager().getBlockPoolId();
+  public String getBlockPoolInfo() {
+    return blockManager.getBlockPoolId();
   }
 
   // HA-only metric
@@ -6338,10 +6344,6 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
   /** @return the block manager. */
   public BlockManager getBlockManager() {
     return blockManager;
-  }
-
-  public HDDSBlockManager getHDDSBlockManager() {
-    return hddsBlockManager;
   }
 
   @VisibleForTesting
@@ -8259,8 +8261,8 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     }
   }
 
-  public HDDSLocationInfo getAdditionalHDDSBlock(String src, String clientName,
-      HDDSLocationInfo previous,
+  public HDDSLocatedBlock getAdditionalHDDSBlock(String src, String clientName,
+      HDDSLocatedBlock previous,
       ExcludeList excludeList,
       long fileId, long clientId)
       throws IOException {
@@ -8269,7 +8271,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     NameNode.stateChangeLog.debug("BLOCK* allocateBlock: {}  inodeId {}" +
         " for {}", src, fileId, clientName);
 
-    HDDSLocationInfo[] onRetryBlock = new HDDSLocationInfo[1];
+    HDDSLocatedBlock[] onRetryBlock = new HDDSLocatedBlock[1];
     FSDirWriteFileOp.ValidateAddBlockResult r;
     checkOperation(OperationCategory.READ);
     final FSPermissionChecker pc = getPermissionChecker();
@@ -8288,12 +8290,12 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       return onRetryBlock[0];
     }
 
-    List<HDDSLocationInfo> locationInfos =
+    List<HDDSLocatedBlock> locationInfos =
         FSDirWriteFileOp.getHDDSBlockFromSCM(this, excludeList, r);
 
     checkOperation(OperationCategory.WRITE);
     writeLock();
-    HDDSLocationInfo lb;
+    HDDSLocatedBlock lb;
     try {
       checkOperation(OperationCategory.WRITE);
       lb = FSDirWriteFileOp.storeHDDSAllocatedBlock(
@@ -8333,8 +8335,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
    * @throws IOException on error (eg lease mismatch, file not open, file deleted)
    */
   boolean completeHDDSFile(final String src, String holder,
-      HDDSLocationInfo last, long fileId)
-      throws IOException {
+      HDDSLocatedBlock last, long fileId) throws IOException {
     boolean success = false;
     checkOperation(OperationCategory.WRITE);
     final FSPermissionChecker pc = getPermissionChecker();
@@ -8359,7 +8360,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       long offset, long length) throws IOException {
     final String operationName = "open";
     checkOperation(OperationCategory.READ);
-    GetHDDSBlockLocationsResult res = null;
+    GetBlockLocationsResult res = null;
     final FSPermissionChecker pc = getPermissionChecker();
     readLock();
     try {
@@ -8367,9 +8368,10 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       res = FSDirStatAndListingOp.getHDDSBlockLocations(
           dir, pc, srcArg, offset, length, true);
       if (isInSafeMode()) {
-        for (HDDSLocationInfo b : res.blocks.getLocatedBlocks()) {
+        for (LocatedBlock b : res.blocks.getLocatedBlocks()) {
+          HDDSLocatedBlock blk = (HDDSLocatedBlock)b;
           // if safemode & no block locations yet then throw safemodeException
-          if ((b.getDatanodeDetails() == null) || (b.getDatanodeDetails().size() == 0)) {
+          if ((blk.getDatanodeDetails() == null) || (blk.getDatanodeDetails().size() == 0)) {
             SafeModeException se = newSafemodeException(
                 "Zero blocklocations for " + srcArg);
             if (haEnabled && haContext != null &&
@@ -8383,8 +8385,9 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
         }
       } else if (haEnabled && haContext != null &&
           haContext.getState().getServiceState() == OBSERVER) {
-        for (HDDSLocationInfo b : res.blocks.getLocatedBlocks()) {
-          if (b.getDatanodeDetails() == null || b.getDatanodeDetails().size() == 0) {
+        for (LocatedBlock b : res.blocks.getLocatedBlocks()) {
+          HDDSLocatedBlock blk = (HDDSLocatedBlock)b;
+          if (blk.getDatanodeDetails() == null || blk.getDatanodeDetails().size() == 0) {
             throw new ObserverRetryOnActiveException("Zero blocklocations for "
                 + srcArg);
           }
@@ -8443,7 +8446,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
       }
     }
 
-    HDDSLocatedBlocks blocks = res.blocks;
+    HDDSLocatedBlocks blocks = (HDDSLocatedBlocks)res.blocks;
     // TODO(baoloongmao): open this after a discussion
 //    sortLocatedBlocks(clientMachine, blocks);
     return blocks;

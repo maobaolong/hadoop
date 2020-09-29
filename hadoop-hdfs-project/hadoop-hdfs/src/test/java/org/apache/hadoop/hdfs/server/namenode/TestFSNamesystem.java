@@ -35,6 +35,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.ha.HAServiceProtocol;
+import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.DFSTestUtil;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
@@ -48,12 +49,20 @@ import org.apache.hadoop.hdfs.server.namenode.top.TopAuditLogger;
 import org.apache.hadoop.hdfs.server.protocol.NamespaceInfo;
 import org.apache.hadoop.test.Whitebox;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import java.util.List;
 
 public class TestFSNamesystem {
+  Configuration conf;
+
+  @Before
+  public void init() {
+    conf = new Configuration();
+    conf.set(ScmConfigKeys.OZONE_SCM_NAMES, "localhost");
+  }
 
   @After
   public void cleanUp() {
@@ -65,13 +74,12 @@ public class TestFSNamesystem {
    */
   @Test
   public void testUniqueEditDirs() throws IOException {
-    Configuration config = new Configuration();
 
-    config.set(DFS_NAMENODE_EDITS_DIR_KEY, "file://edits/dir, "
+    conf.set(DFS_NAMENODE_EDITS_DIR_KEY, "file://edits/dir, "
         + "file://edits/dir1,file://edits/dir1"); // overlapping internally
 
     // getNamespaceEditsDirs removes duplicates
-    Collection<URI> editsDirs = FSNamesystem.getNamespaceEditsDirs(config);
+    Collection<URI> editsDirs = FSNamesystem.getNamespaceEditsDirs(conf);
     assertEquals(2, editsDirs.size());
   }
 
@@ -80,7 +88,6 @@ public class TestFSNamesystem {
    */
   @Test
   public void testFSNamespaceClearLeases() throws Exception {
-    Configuration conf = new HdfsConfiguration();
     File nameDir = new File(MiniDFSCluster.getBaseDirectory(), "name");
     conf.set(DFS_NAMENODE_NAME_DIR_KEY, nameDir.getAbsolutePath());
 
@@ -101,7 +108,6 @@ public class TestFSNamesystem {
    * and not also during low-resource safemode
    */
   public void testStartupSafemode() throws IOException {
-    Configuration conf = new Configuration();
     FSImage fsImage = Mockito.mock(FSImage.class);
     FSEditLog fsEditLog = Mockito.mock(FSEditLog.class);
     Mockito.when(fsImage.getEditLog()).thenReturn(fsEditLog);
@@ -122,8 +128,6 @@ public class TestFSNamesystem {
 
   @Test
   public void testReplQueuesActiveAfterStartupSafemode() throws IOException, InterruptedException{
-    Configuration conf = new Configuration();
-
     FSEditLog fsEditLog = Mockito.mock(FSEditLog.class);
     FSImage fsImage = Mockito.mock(FSImage.class);
     Mockito.when(fsImage.getEditLog()).thenReturn(fsEditLog);
@@ -159,8 +163,6 @@ public class TestFSNamesystem {
 
   @Test
   public void testHAStateInNamespaceInfo() throws IOException {
-    Configuration conf = new Configuration();
-
     FSEditLog fsEditLog = Mockito.mock(FSEditLog.class);
     FSImage fsImage = Mockito.mock(FSImage.class);
     Mockito.when(fsImage.getEditLog()).thenReturn(fsEditLog);
@@ -178,7 +180,6 @@ public class TestFSNamesystem {
 
   @Test
   public void testReset() throws Exception {
-    Configuration conf = new Configuration();
     FSEditLog fsEditLog = Mockito.mock(FSEditLog.class);
     FSImage fsImage = Mockito.mock(FSImage.class);
     Mockito.when(fsImage.getEditLog()).thenReturn(fsEditLog);
@@ -216,7 +217,6 @@ public class TestFSNamesystem {
 
   @Test
   public void testSafemodeReplicationConf() throws IOException {
-    Configuration conf = new Configuration();
     FSImage fsImage = Mockito.mock(FSImage.class);
     FSEditLog fsEditLog = Mockito.mock(FSEditLog.class);
     Mockito.when(fsImage.getEditLog()).thenReturn(fsEditLog);
@@ -224,7 +224,7 @@ public class TestFSNamesystem {
     FSNamesystem fsn = new FSNamesystem(conf, fsImage);
 
     Object bmSafeMode = Whitebox.getInternalState(fsn.getBlockManager(),
-        "bmSafeMode");
+        "safeModeManager");
     int safeReplication = (int)Whitebox.getInternalState(bmSafeMode,
         "safeReplication");
     assertEquals(2, safeReplication);
@@ -232,7 +232,6 @@ public class TestFSNamesystem {
 
   @Test(timeout = 30000)
   public void testInitAuditLoggers() throws IOException {
-    Configuration conf = new Configuration();
     FSImage fsImage = Mockito.mock(FSImage.class);
     FSEditLog fsEditLog = Mockito.mock(FSEditLog.class);
     Mockito.when(fsImage.getEditLog()).thenReturn(fsEditLog);
@@ -244,6 +243,7 @@ public class TestFSNamesystem {
     // Disable top logger
     conf.setBoolean(DFSConfigKeys.NNTOP_ENABLED_KEY, false);
     conf.setBoolean(HADOOP_CALLER_CONTEXT_ENABLED_KEY, true);
+    conf.set(ScmConfigKeys.OZONE_SCM_NAMES, "localhost");
     fsn = new FSNamesystem(conf, fsImage);
     auditLoggers = fsn.getAuditLoggers();
     assertTrue(auditLoggers.size() == 1);

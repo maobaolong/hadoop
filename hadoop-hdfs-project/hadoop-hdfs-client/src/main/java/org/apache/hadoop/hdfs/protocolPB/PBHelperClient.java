@@ -53,7 +53,7 @@ import org.apache.hadoop.fs.XAttr;
 import org.apache.hadoop.fs.XAttrSetFlag;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.HDDSDirectoryListingProto;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.HddsLocation;
@@ -3492,20 +3492,20 @@ public class PBHelperClient {
     return hddsLocatedBlocks;
   }
 
-  public static List<HDDSLocationInfo> convertLocationList(
+  public static List<LocatedBlock> convertLocationList(
       List<HddsLocation> hddsLocationList) {
-    List<HDDSLocationInfo> blks = new ArrayList<>();
+    List<LocatedBlock> blks = new ArrayList<>();
     for (HddsLocation hddsLocation : hddsLocationList) {
-      blks.add(HDDSLocationInfo.getFromProtobuf(hddsLocation));
+      blks.add(HDDSLocatedBlock.getFromProtobuf(hddsLocation));
     }
     return blks;
   }
 
   public static List<HddsLocation> convertLocationInfoList(
-      List<HDDSLocationInfo> hddsLocationInfoList) {
+      List<LocatedBlock> hddsLocationInfoList) {
     List<HddsLocation> blks = new ArrayList<>();
-    for (HDDSLocationInfo hddsLocationInfo : hddsLocationInfoList) {
-      blks.add(hddsLocationInfo.getProtobuf());
+    for (LocatedBlock hddsLocationInfo : hddsLocationInfoList) {
+      blks.add(((HDDSLocatedBlock)hddsLocationInfo).getProtobuf());
     }
     return blks;
   }

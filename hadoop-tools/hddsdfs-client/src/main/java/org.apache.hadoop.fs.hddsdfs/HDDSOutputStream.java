@@ -22,7 +22,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.apache.hadoop.fs.FSExceptionMessages;
 import org.apache.hadoop.fs.FileEncryptionInfo;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ChecksumType;
 import org.apache.hadoop.hdds.scm.client.HddsClientUtils;
@@ -112,7 +112,7 @@ public class HDDSOutputStream extends OutputStream {
   }
 
   @VisibleForTesting
-  public List<HDDSLocationInfo> getLocationInfoList() {
+  public List<HDDSLocatedBlock> getLocationInfoList() {
     return blockOutputStreamEntryPool.getLocationInfoList();
   }
 

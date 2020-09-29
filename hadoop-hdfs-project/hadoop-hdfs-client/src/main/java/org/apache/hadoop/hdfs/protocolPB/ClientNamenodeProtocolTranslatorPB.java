@@ -50,9 +50,9 @@ import org.apache.hadoop.fs.permission.FsAction;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.ha.HAServiceProtocol;
 import org.apache.hadoop.ha.proto.HAServiceProtocolProtos.HAServiceStateProto;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.GetHDDSBlockLocationsResponseProto;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.GetHDDSListingResponseProto;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
@@ -2007,8 +2007,8 @@ public class ClientNamenodeProtocolTranslatorPB implements
   }
 
   @Override
-  public HDDSLocationInfo allocateBlock(
-      String src, String clientName, HDDSLocationInfo previousBlock,
+  public HDDSLocatedBlock allocateBlock(
+      String src, String clientName, HDDSLocatedBlock previousBlock,
       ExcludeList excludeList, long fileId, long clientId)
       throws IOException {
     AllocateBlockRequest.Builder builder = AllocateBlockRequest.newBuilder()
@@ -2024,7 +2024,7 @@ public class ClientNamenodeProtocolTranslatorPB implements
     try {
       HddsLocation hddsLocation =
           rpcProxy.allocateBlock(null, req).getHddsLocation();
-      HDDSLocationInfo info = HDDSLocationInfo.getFromProtobuf(hddsLocation);
+      HDDSLocatedBlock info = HDDSLocatedBlock.getFromProtobuf(hddsLocation);
       // TODO(baoloongmao): bring token back later
 //      if(keyLocation.hasToken()) {
 //        info.token = (Token<OzoneBlockTokenIdentifier>)
@@ -2058,7 +2058,7 @@ public class ClientNamenodeProtocolTranslatorPB implements
 
   @Override
   public boolean completeHDDSFile(String src, String clientName,
-                               HDDSLocationInfo last, long fileId)
+                                  HDDSLocatedBlock last, long fileId)
       throws IOException {
     CompleteHDDSFileRequestProto.Builder req = CompleteHDDSFileRequestProto.newBuilder()
         .setSrc(src)

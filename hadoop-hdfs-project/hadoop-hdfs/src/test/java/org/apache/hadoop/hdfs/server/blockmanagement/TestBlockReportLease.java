@@ -74,8 +74,8 @@ public class TestBlockReportLease {
       cluster.waitActive();
 
       FSNamesystem fsn = cluster.getNamesystem();
-      HDFSBlockManager blockManager = (HDFSBlockManager)fsn.getBlockManager();
-      HDFSBlockManager spyBlockManager = spy(blockManager);
+      HdfsBlockManager blockManager = (HdfsBlockManager)fsn.getBlockManager();
+      HdfsBlockManager spyBlockManager = spy(blockManager);
       fsn.setBlockManagerForTesting(spyBlockManager);
       String poolId = cluster.getNamesystem().getBlockPoolId();
 

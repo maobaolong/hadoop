@@ -49,7 +49,7 @@ import java.util.List;
 import java.util.Random;
 import com.google.common.collect.ImmutableList;
 
-import org.apache.hadoop.hdfs.server.blockmanagement.HDFSBlockManager;
+import org.apache.hadoop.hdfs.server.blockmanagement.HdfsBlockManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -149,7 +149,7 @@ public class TestNameNodeMetrics {
   private final Random rand = new Random();
   private FSNamesystem namesystem;
   private HostsFileWriter hostsFileWriter;
-  private HDFSBlockManager bm;
+  private HdfsBlockManager bm;
   private Path ecDir;
 
   private static Path getTestPath(String fileName) {
@@ -164,7 +164,7 @@ public class TestNameNodeMetrics {
         .build();
     cluster.waitActive();
     namesystem = cluster.getNamesystem();
-    bm = (HDFSBlockManager)namesystem.getBlockManager();
+    bm = (HdfsBlockManager)namesystem.getBlockManager();
     fs = cluster.getFileSystem();
     fs.enableErasureCodingPolicy(EC_POLICY.getName());
     ecDir = getTestPath("/ec");

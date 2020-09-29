@@ -1,4 +1,22 @@
-package org.apache.hadoop.hdfs.server.blockmanagement;
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.hadoop.hdfs.server.blockmanagement.hdds;
 
 import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
@@ -6,6 +24,7 @@ import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.UnknownPipelineStateException;
 import org.apache.hadoop.hdds.security.token.OzoneBlockTokenIdentifier;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.security.token.Token;
 
@@ -18,7 +37,8 @@ import java.util.Objects;
  * One key can be too huge to fit in one container. In which case it gets split
  * into a number of subkeys. This class represents one such subkey instance.
  */
-public final class HDDSServerLocationInfo implements Writable {
+public final class HDDSBlockInfo extends BlockInfoContiguous
+    implements Writable{
   private BlockID blockID;
   // the id of this subkey in all the subkeys.
   private long length;
@@ -30,11 +50,13 @@ public final class HDDSServerLocationInfo implements Writable {
 
   private Pipeline pipeline;
 
-  public HDDSServerLocationInfo() {
+  public HDDSBlockInfo() {
+    super((short)0);
   }
 
-  private HDDSServerLocationInfo(BlockID blockID, Pipeline pipeline, long length,
+  private HDDSBlockInfo(BlockID blockID, Pipeline pipeline, long length,
       long offset, Token<OzoneBlockTokenIdentifier> token, long createVersion) {
+    super((short)length);
     this.blockID = blockID;
     this.pipeline = pipeline;
     this.length = length;
@@ -133,8 +155,8 @@ public final class HDDSServerLocationInfo implements Writable {
       return this;
     }
 
-    public HDDSServerLocationInfo build() {
-      return new HDDSServerLocationInfo(blockID, pipeline, length,
+    public HDDSBlockInfo build() {
+      return new HDDSBlockInfo(blockID, pipeline, length,
           offset, token, createVersion);
     }
   }
@@ -150,9 +172,9 @@ public final class HDDSServerLocationInfo implements Writable {
         .build();
   }
 
-  public static HDDSServerLocationInfo getFromProtobuf(
+  public static HDDSBlockInfo getFromProtobuf(
       HdfsProtos.HDDSServerLocationInfoProto locationInfoProto) {
-    return new HDDSServerLocationInfo.Builder()
+    return new HDDSBlockInfo.Builder()
         .setBlockID(new BlockID(locationInfoProto.getContainerId(),
             locationInfoProto.getLocalId()))
         .setLength(locationInfoProto.getLength())
@@ -220,7 +242,7 @@ public final class HDDSServerLocationInfo implements Writable {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    HDDSServerLocationInfo that = (HDDSServerLocationInfo) o;
+    HDDSBlockInfo that = (HDDSBlockInfo) o;
     return length == that.length &&
         offset == that.offset &&
         createVersion == that.createVersion &&

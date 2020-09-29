@@ -20,12 +20,8 @@ package org.apache.hadoop.hdfs.server.namenode;
 import com.google.common.base.Preconditions;
 import org.apache.hadoop.HadoopIllegalArgumentException;
 import org.apache.hadoop.fs.XAttrSetFlag;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
-import org.apache.hadoop.hdds.client.BlockID;
-import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
-import org.apache.hadoop.hdds.scm.container.common.helpers.AllocatedBlock;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
-import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdfs.AddBlockFlag;
 import org.apache.hadoop.fs.CreateFlag;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
@@ -50,12 +46,13 @@ import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoStriped;
-import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
 
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.protocol.BlockType;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockUnderConstructionFeature;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeStorageInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockManager;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.namenode.FSDirectory.DirOp;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
@@ -272,9 +269,9 @@ public class FSDirWriteFileOp {
     return makeLocatedBlock(fsn, fsn.getStoredBlock(newBlock), targets, offset);
   }
 
-  static HDDSLocationInfo storeHDDSAllocatedBlock(FSNamesystem fsn, String src,
-      long fileId, String clientName, HDDSLocationInfo previous,
-      HDDSLocationInfo allocatedBlock) throws IOException {
+  static HDDSLocatedBlock storeHDDSAllocatedBlock(FSNamesystem fsn, String src,
+      long fileId, String clientName, HDDSLocatedBlock previous,
+      HDDSLocatedBlock allocatedBlock) throws IOException {
     // Run the full analysis again, since things could have changed
     // while chooseTarget() was executing.
     INodesInPath iip = fsn.dir.resolvePath(null, src, fileId);
@@ -286,7 +283,7 @@ public class FSDirWriteFileOp {
     INodesInPath inodesInPath = INodesInPath.fromINode(pendingFile);
     final INodeFile fileINode = inodesInPath.getLastINode().asFile();
 
-    HDDSServerLocationInfo info = new HDDSServerLocationInfo.Builder()
+    HDDSBlockInfo info = new HDDSBlockInfo.Builder()
         .setBlockID(allocatedBlock.getBlockID())
         .setPipeline(allocatedBlock.getPipeline())
         .setLength(allocatedBlock.getLength())
@@ -899,7 +896,7 @@ public class FSDirWriteFileOp {
   }
 
   static boolean completeHDDSFile(FSNamesystem fsn, FSPermissionChecker pc,
-      final String srcArg, String holder, HDDSLocationInfo last, long fileId)
+      final String srcArg, String holder, HDDSLocatedBlock last, long fileId)
       throws IOException {
     String src = srcArg;
     if (NameNode.stateChangeLog.isDebugEnabled()) {
@@ -914,7 +911,7 @@ public class FSDirWriteFileOp {
 
   private static boolean completeHDDSFileInternal(
       FSNamesystem fsn, INodesInPath iip,
-      String holder, HDDSLocationInfo last, long fileId)
+      String holder, HDDSLocatedBlock last, long fileId)
       throws IOException {
     assert fsn.hasWriteLock();
     final String src = iip.getPath();
@@ -943,7 +940,7 @@ public class FSDirWriteFileOp {
   static ValidateAddBlockResult validateAddHDDSBlock(
       FSNamesystem fsn, FSPermissionChecker pc,
       String src, long fileId, String clientName,
-      HDDSLocationInfo previous, HDDSLocationInfo[] onRetryBlock) throws IOException {
+      HDDSLocatedBlock previous, HDDSLocatedBlock[] onRetryBlock) throws IOException {
     final long blockSize;
     final short numTargets;
     final byte storagePolicyID;
@@ -990,20 +987,20 @@ public class FSDirWriteFileOp {
         clientMachine, blockType, ecPolicy);
   }
 
-  static List<HDDSLocationInfo> getHDDSBlockFromSCM(
+  static List<HDDSLocatedBlock> getHDDSBlockFromSCM(
       FSNamesystem fs,
       ExcludeList excludeList,
       FSDirWriteFileOp.ValidateAddBlockResult r) throws IOException {
-    return fs.getHDDSBlockManager().getHDDSBlockFromSCM(
+    return ((HddsBlockManager)fs.getBlockManager()).getHDDSBlockFromSCM(
         excludeList, r.blockSize, r.numTargets);
   }
 
   static boolean unprotectedRemoveHDDSBlock(
       FSDirectory fsd, String path, INodesInPath iip, INodeFile fileNode,
-      HDDSServerLocationInfo block) throws IOException {
+      HDDSBlockInfo block) throws IOException {
     // modify file-> block and blocksMap
     // fileNode should be under construction
-    HDDSServerLocationInfo lastBlock = fileNode.removeHDDSLastBlock(block);
+    HDDSBlockInfo lastBlock = fileNode.removeHDDSLastBlock(block);
     if (lastBlock == null) {
       return false;
     }

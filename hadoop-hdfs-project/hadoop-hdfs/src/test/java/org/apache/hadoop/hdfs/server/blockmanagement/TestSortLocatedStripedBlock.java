@@ -513,7 +513,7 @@ public class TestSortLocatedStripedBlock {
     BlockManager bm = Mockito.mock(BlockManager.class);
     BlockReportLeaseManager blm = new BlockReportLeaseManager(conf);
     Mockito.when(bm.getBlockReportLeaseManager()).thenReturn(blm);
-    DatanodeManager dm = new HDFSDatanodeManager(bm, fsn, conf);
+    DatanodeManager dm = new HdfsDatanodeManager(bm, fsn, conf);
     return dm;
   }
 

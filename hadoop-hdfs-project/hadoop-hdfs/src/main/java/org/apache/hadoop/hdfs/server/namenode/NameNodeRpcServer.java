@@ -53,7 +53,7 @@ import org.apache.hadoop.crypto.CryptoProtocolVersion;
 import org.apache.hadoop.fs.BatchedRemoteIterator.BatchedEntries;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
 import org.apache.hadoop.hdfs.AddBlockFlag;
 import org.apache.hadoop.fs.CacheFlag;
@@ -153,7 +153,6 @@ import org.apache.hadoop.hdfs.security.token.block.ExportedBlockKeys;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManagerFaultInjector;
-import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.NamenodeRole;
 import org.apache.hadoop.hdfs.server.common.HttpGetFailedException;
@@ -2615,14 +2614,14 @@ public class NameNodeRpcServer implements NamenodeProtocols {
   }
 
   @Override
-  public HDDSLocationInfo allocateBlock(String src, String clientName,
-      HDDSLocationInfo previous,
+  public HDDSLocatedBlock allocateBlock(String src, String clientName,
+      HDDSLocatedBlock previous,
       ExcludeList excludeList,
       long fileId,
       long clientID)
       throws IOException {
     checkNNStartup();
-    HDDSLocationInfo allocateBlock = namesystem.getAdditionalHDDSBlock(
+    HDDSLocatedBlock allocateBlock = namesystem.getAdditionalHDDSBlock(
         src, clientName, previous, excludeList,
         fileId, clientID);
     if (allocateBlock != null) {
@@ -2646,7 +2645,7 @@ public class NameNodeRpcServer implements NamenodeProtocols {
 
   @Override
   public boolean completeHDDSFile(String src, String clientName,
-      HDDSLocationInfo last, long fileId)
+      HDDSLocatedBlock last, long fileId)
       throws IOException {
     checkNNStartup();
     namesystem.completeHDDSFile(src, clientName, last, fileId);

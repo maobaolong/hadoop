@@ -32,7 +32,7 @@ import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.AclStatus;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdfs.DFSUtilClient;
 import org.apache.hadoop.hdfs.XAttrHelper;
 import org.apache.hadoop.hdfs.protocol.*;
@@ -651,7 +651,7 @@ public class JsonUtil {
 
   /** Convert a LocatedBlock[] to a Json array. */
   private static Object[] toHDDSLocationInfoJsonArray(
-      final List<HDDSLocationInfo> array) throws IOException {
+      final List<LocatedBlock> array) throws IOException {
     if (array == null) {
       return null;
     } else if (array.size() == 0) {
@@ -667,7 +667,7 @@ public class JsonUtil {
 
   /** Convert a LocatedBlock to a Json map. */
   private static Map<String, Object> toJsonMap(
-      final HDDSLocationInfo locatedblock) throws IOException {
+      final HDDSLocatedBlock locatedblock) throws IOException {
     if (locatedblock == null) {
       return null;
     }
@@ -681,7 +681,8 @@ public class JsonUtil {
   }
 
   /** Convert an ExtendedBlock to a Json map. */
-  private static Map<String, Object> toBlockJsonMap(final HDDSLocationInfo extendedblock) {
+  private static Map<String, Object> toBlockJsonMap(
+      final HDDSLocatedBlock extendedblock) {
     if (extendedblock == null) {
       return null;
     }

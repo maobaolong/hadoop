@@ -35,7 +35,7 @@ import org.apache.hadoop.ha.proto.HAServiceProtocolProtos;
 import org.apache.hadoop.ha.proto.HAServiceProtocolProtos.HAServiceStateProto;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.GetHDDSBlockLocationsResponseProto;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos.GetHDDSListingResponseProto;
@@ -1979,7 +1979,7 @@ public class ClientNamenodeProtocolServerSideTranslatorPB implements
       ClientNamenodeSCMProtocolProtos.HddsLocation
           hddsLocation =
           server.allocateBlock(request.getSrc(), request.getClientName(),
-              HDDSLocationInfo.getFromProtobuf(request.getPrevious()),
+              HDDSLocatedBlock.getFromProtobuf(request.getPrevious()),
               excludeList, request.getFileId(), request.getClientID())
               .getProtobuf();
       return ClientNamenodeSCMProtocolProtos.AllocateBlockResponse.newBuilder()
@@ -2015,7 +2015,7 @@ public class ClientNamenodeProtocolServerSideTranslatorPB implements
     try {
       boolean result =
           server.completeHDDSFile(req.getSrc(), req.getClientName(),
-              req.hasLast() ? HDDSLocationInfo.getFromProtobuf(req.getLast()) : null,
+              req.hasLast() ? HDDSLocatedBlock.getFromProtobuf(req.getLast()) : null,
               req.hasFileId() ? req.getFileId() : HdfsConstants.GRANDFATHER_INODE_ID);
       return ClientNamenodeSCMProtocolProtos.
           CompleteHDDSFileResponseProto.newBuilder().setResult(result).build();

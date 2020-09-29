@@ -71,8 +71,8 @@ import java.util.concurrent.TimeUnit;
  */
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
-public class HDFSDatanodeManager implements DatanodeManager{
-  static final Logger LOG = LoggerFactory.getLogger(HDFSDatanodeManager.class);
+public class HdfsDatanodeManager implements DatanodeManager{
+  static final Logger LOG = LoggerFactory.getLogger(HdfsDatanodeManager.class);
 
   private final Namesystem namesystem;
   private final BlockManager blockManager;
@@ -208,7 +208,7 @@ public class HDFSDatanodeManager implements DatanodeManager{
    */
   private final long timeBetweenResendingCachingDirectivesMs;
 
-  HDFSDatanodeManager(final BlockManager blockManager,
+  HdfsDatanodeManager(final BlockManager blockManager,
       final Namesystem namesystem,
       final Configuration conf) throws IOException {
     this.namesystem = namesystem;
@@ -223,9 +223,9 @@ public class HDFSDatanodeManager implements DatanodeManager{
       networktopology = NetworkTopology.getInstance(conf);
     }
 
-    this.heartbeatManager = new HDFSHeartbeatManager(namesystem,
+    this.heartbeatManager = new HdfsHeartbeatManager(namesystem,
         blockManager, conf);
-    this.datanodeAdminManager = new HDFSDatanodeAdminManager(namesystem,
+    this.datanodeAdminManager = new HdfsDatanodeAdminManager(namesystem,
         blockManager, heartbeatManager);
     this.fsClusterStats = newFSClusterStats();
     this.dataNodePeerStatsEnabled = conf.getBoolean(

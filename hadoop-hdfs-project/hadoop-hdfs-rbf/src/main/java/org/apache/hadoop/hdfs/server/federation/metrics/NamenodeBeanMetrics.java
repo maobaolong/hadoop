@@ -708,7 +708,7 @@ public class NamenodeBeanMetrics
   }
 
   @Override  //NameNodeMXBean
-  public String getScmId() {
+  public String getBlockPoolInfo() {
     return "N/A";
   }
 }

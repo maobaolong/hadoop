@@ -29,7 +29,7 @@ import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdfs.client.HdfsClientConfigKeys;
 import org.apache.hadoop.hdfs.net.BasicInetPeer;
@@ -326,7 +326,7 @@ public class DFSUtilClient {
 
 
   public static BlockLocation[] hddsLocation2Locations(
-      List<HDDSLocationInfo> blocks) {
+      List<LocatedBlock> blocks) {
     if (blocks == null) {
       return new BlockLocation[0];
     }
@@ -336,7 +336,8 @@ public class DFSUtilClient {
       return blkLocations;
     }
     int idx = 0;
-    for (HDDSLocationInfo blk : blocks) {
+    for (LocatedBlock b : blocks) {
+      HDDSLocatedBlock blk= (HDDSLocatedBlock)b;
       assert idx < nrBlocks : "Incorrect index";
       List<DatanodeDetails> locations = blk.getPipeline().getNodes();
       String[] hosts = new String[locations.size()];

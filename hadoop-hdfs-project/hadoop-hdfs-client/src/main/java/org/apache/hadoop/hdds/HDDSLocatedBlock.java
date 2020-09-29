@@ -26,6 +26,7 @@ import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.UnknownPipelineStateException;
 import org.apache.hadoop.hdds.security.token.OzoneBlockTokenIdentifier;
 import org.apache.hadoop.hdfs.protocol.DatanodeInfo;
+import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.security.token.Token;
 
 import java.util.Collections;
@@ -36,7 +37,7 @@ import java.util.Objects;
  * One key can be too huge to fit in one container. In which case it gets split
  * into a number of subkeys. This class represents one such subkey instance.
  */
-public final class HDDSLocationInfo {
+public final class HDDSLocatedBlock extends LocatedBlock {
   @JsonProperty("blockId")
   private final BlockID blockID;
   // the id of this subkey in all the subkeys.
@@ -50,16 +51,18 @@ public final class HDDSLocationInfo {
   @JsonIgnore
   private Pipeline pipeline;
 
-  private HDDSLocationInfo(BlockID blockID, Pipeline pipeline, long length,
-                           long offset) {
+  public HDDSLocatedBlock(BlockID blockID, Pipeline pipeline, long length,
+      long offset) {
+    super(null, null);
     this.blockID = blockID;
     this.pipeline = pipeline;
     this.length = length;
     this.offset = offset;
   }
 
-  private HDDSLocationInfo(BlockID blockID, Pipeline pipeline, long length,
-                           long offset, Token<OzoneBlockTokenIdentifier> token) {
+  public HDDSLocatedBlock(BlockID blockID, Pipeline pipeline, long length,
+      long offset, Token<OzoneBlockTokenIdentifier> token) {
+    super(null, null);
     this.blockID = blockID;
     this.pipeline = pipeline;
     this.length = length;
@@ -156,11 +159,11 @@ public final class HDDSLocationInfo {
       return this;
     }
 
-    public HDDSLocationInfo build() {
+    public HDDSLocatedBlock build() {
       if (token == null) {
-        return new HDDSLocationInfo(blockID, pipeline, length, offset);
+        return new HDDSLocatedBlock(blockID, pipeline, length, offset);
       } else {
-        return new HDDSLocationInfo(blockID, pipeline, length, offset, token);
+        return new HDDSLocatedBlock(blockID, pipeline, length, offset, token);
       }
     }
   }
@@ -194,9 +197,9 @@ public final class HDDSLocationInfo {
     }
   }
 
-  public static HDDSLocationInfo getFromProtobuf(
+  public static HDDSLocatedBlock getFromProtobuf(
       ClientNamenodeSCMProtocolProtos.HddsLocation keyLocation) {
-    HDDSLocationInfo info = new HDDSLocationInfo(
+    HDDSLocatedBlock info = new HDDSLocatedBlock(
         BlockID.getFromProtobuf(keyLocation.getBlockID()),
         getPipeline(keyLocation),
         keyLocation.getLength(),
@@ -228,7 +231,7 @@ public final class HDDSLocationInfo {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    HDDSLocationInfo that = (HDDSLocationInfo) o;
+    HDDSLocatedBlock that = (HDDSLocatedBlock) o;
     return length == that.length &&
         offset == that.offset &&
         createVersion == that.createVersion &&

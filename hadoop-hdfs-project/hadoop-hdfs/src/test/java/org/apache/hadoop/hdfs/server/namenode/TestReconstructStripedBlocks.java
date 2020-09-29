@@ -39,7 +39,7 @@ import org.apache.hadoop.hdfs.server.blockmanagement.BlockManagerTestUtil;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeStorageInfo;
-import org.apache.hadoop.hdfs.server.blockmanagement.HDFSBlockManager;
+import org.apache.hadoop.hdfs.server.blockmanagement.HdfsBlockManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.NumberReplicas;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.datanode.DataNodeTestUtils;
@@ -139,8 +139,8 @@ public class TestReconstructStripedBlocks {
         assertEquals(groupSize, sb.numNodes());
       }
 
-      final HDFSBlockManager bm =
-          (HDFSBlockManager)cluster.getNamesystem().getBlockManager();
+      final HdfsBlockManager bm =
+          (HdfsBlockManager)cluster.getNamesystem().getBlockManager();
       BlockInfo firstBlock = fileNode.getBlocks()[0];
       DatanodeStorageInfo[] storageInfos = bm.getStorages(firstBlock);
 
@@ -209,8 +209,8 @@ public class TestReconstructStripedBlocks {
     try {
       cluster.waitActive();
       DistributedFileSystem fs = cluster.getFileSystem();
-      HDFSBlockManager bm =
-          (HDFSBlockManager)cluster.getNamesystem().getBlockManager();
+      HdfsBlockManager bm =
+          (HdfsBlockManager)cluster.getNamesystem().getBlockManager();
       fs.enableErasureCodingPolicy(
           StripedFileTestUtil.getDefaultECPolicy().getName());
       fs.getClient().setErasureCodingPolicy("/",
@@ -401,8 +401,8 @@ public class TestReconstructStripedBlocks {
       DFSTestUtil.createStripedFile(dfsCluster, ecFilePath, ecDir,
           blockGroups, 2, false, policy);
 
-      final HDFSBlockManager bm =
-          (HDFSBlockManager)dfsCluster.getNamesystem().getBlockManager();
+      final HdfsBlockManager bm =
+          (HdfsBlockManager)dfsCluster.getNamesystem().getBlockManager();
       LocatedBlocks lbs = fs.getClient().getNamenode().getBlockLocations(
           ecFilePath.toString(), 0, blockGroups);
       assert lbs.get(0) instanceof LocatedStripedBlock;

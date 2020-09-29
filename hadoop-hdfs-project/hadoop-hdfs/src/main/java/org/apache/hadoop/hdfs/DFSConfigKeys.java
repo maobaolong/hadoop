@@ -1306,6 +1306,9 @@ public class DFSConfigKeys extends CommonConfigurationKeys {
       "dfs.namenode.send.qop.enabled";
   public static final boolean DFS_NAMENODE_SEND_QOP_ENABLED_DEFAULT = false;
 
+  public static final String DFS_NAMENODE_BLOCKMANAGER_CLASS =
+      "dfs.namenode.blockmanager.class";
+
   // dfs.client.retry confs are moved to HdfsClientConfigKeys.Retry 
   @Deprecated
   public static final String  DFS_CLIENT_RETRY_POLICY_ENABLED_KEY

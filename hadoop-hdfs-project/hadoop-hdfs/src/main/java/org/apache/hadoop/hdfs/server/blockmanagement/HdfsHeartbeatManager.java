@@ -41,8 +41,8 @@ import com.google.common.annotations.VisibleForTesting;
  * The datanode list and statistics are synchronized
  * by the heartbeat manager lock.
  */
-class HDFSHeartbeatManager implements HeartbeatManager {
-  static final Logger LOG = LoggerFactory.getLogger(HDFSHeartbeatManager.class);
+class HdfsHeartbeatManager implements HeartbeatManager {
+  static final Logger LOG = LoggerFactory.getLogger(HdfsHeartbeatManager.class);
 
   /**
    * Stores a subset of the datanodeMap in DatanodeManager,
@@ -65,7 +65,7 @@ class HDFSHeartbeatManager implements HeartbeatManager {
   final Namesystem namesystem;
   final BlockManager blockManager;
 
-  HDFSHeartbeatManager(final Namesystem namesystem,
+  HdfsHeartbeatManager(final Namesystem namesystem,
       final BlockManager blockManager, final Configuration conf) {
     this.namesystem = namesystem;
     this.blockManager = blockManager;
@@ -451,7 +451,7 @@ class HDFSHeartbeatManager implements HeartbeatManager {
             lastHeartbeatCheck = now;
           }
           if (blockManager.shouldUpdateBlockKey(now - lastBlockKeyUpdate)) {
-            synchronized(HDFSHeartbeatManager.this) {
+            synchronized(HdfsHeartbeatManager.this) {
               for(DatanodeDescriptor d : datanodes) {
                 d.setNeedKeyUpdate(true);
               }

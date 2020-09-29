@@ -56,7 +56,7 @@ public class TestComputeInvalidateWork {
   private final int NUM_OF_DATANODES = 3;
   private MiniDFSCluster cluster;
   private FSNamesystem namesystem;
-  private HDFSBlockManager bm;
+  private HdfsBlockManager bm;
   private DatanodeDescriptor[] nodes;
   private ErasureCodingPolicy ecPolicy;
   private DistributedFileSystem fs;
@@ -73,7 +73,7 @@ public class TestComputeInvalidateWork {
         .build();
     cluster.waitActive();
     namesystem = cluster.getNamesystem();
-    bm = (HDFSBlockManager) namesystem.getBlockManager();
+    bm = (HdfsBlockManager) namesystem.getBlockManager();
     nodes = bm.getDatanodeManager().getDatanodes()
         .toArray(new DatanodeDescriptor[0]);
     BlockManagerTestUtil.stopRedundancyThread(bm);

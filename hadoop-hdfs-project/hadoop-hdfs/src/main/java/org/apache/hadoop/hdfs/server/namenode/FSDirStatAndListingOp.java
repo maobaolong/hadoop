@@ -29,7 +29,7 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.QuotaUsage;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
-import org.apache.hadoop.hdds.HDDSLocationInfo;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.ClientProtocol;
@@ -38,11 +38,12 @@ import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.HdfsLocatedFileStatus;
+import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.protocol.SnapshotException;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
-import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
-import org.apache.hadoop.hdfs.server.blockmanagement.hddsblockmanager.HDDSBlockManager;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockManager;
 import org.apache.hadoop.hdfs.server.namenode.FSDirectory.DirOp;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.DirectorySnapshottableFeature;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
@@ -222,22 +223,22 @@ class FSDirStatAndListingOp {
         final long fileSize = !inSnapshot && isUc
             ? fileNode.computeFileSizeNotIncludingLastUcBlock() : size;
 
-        List<HDDSLocationInfo> blks = new ArrayList<>();
+        List<LocatedBlock> blks = new ArrayList<>();
         Set<Long> containerIDs = new HashSet<>();
-        for (HDDSServerLocationInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
+        for (HDDSBlockInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
           containerIDs.add(hddsLocationInfo.getContainerID());
         }
         Map<Long, ContainerWithPipeline> containerWithPipelineMap =
-            fsd.getFSNamesystem().getHDDSBlockManager()
+            ((HddsBlockManager)fsd.getFSNamesystem().getBlockManager())
                 .refreshPipeline(containerIDs);
-        for (HDDSServerLocationInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
+        for (HDDSBlockInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
           ContainerWithPipeline cp =
               containerWithPipelineMap.get(hddsLocationInfo.getContainerID());
           if (cp != null && !cp.getPipeline().equals(hddsLocationInfo.getPipeline())) {
             hddsLocationInfo.setPipeline(cp.getPipeline());
           }
 
-          HDDSLocationInfo info = new HDDSLocationInfo.Builder()
+          HDDSLocatedBlock info = new HDDSLocatedBlock.Builder()
               .setBlockID(hddsLocationInfo.getBlockID())
               .setPipeline(hddsLocationInfo.getPipeline())
               .setLength(hddsLocationInfo.getLength())
@@ -247,10 +248,10 @@ class FSDirStatAndListingOp {
           blks.add(info);
         }
 
-        HDDSServerLocationInfo last = fileNode.getLastHDDSBlock();
-        HDDSLocationInfo locationInfo = null;
+        HDDSBlockInfo last = fileNode.getLastHDDSBlock();
+        HDDSLocatedBlock locationInfo = null;
         if (last != null) {
-          locationInfo = new HDDSLocationInfo.Builder()
+          locationInfo = new HDDSLocatedBlock.Builder()
               .setBlockID(last.getBlockID())
               .setPipeline(last.getPipeline())
               .setLength(last.getLength())
@@ -791,14 +792,14 @@ class FSDirStatAndListingOp {
     }
   }
 
-  static GetHDDSBlockLocationsResult getHDDSBlockLocations(
+  static GetBlockLocationsResult getHDDSBlockLocations(
       FSDirectory fsd, FSPermissionChecker pc, String src, long offset,
       long length, boolean needBlockToken) throws IOException {
     Preconditions.checkArgument(offset >= 0,
         "Negative offset is not supported. File: " + src);
     Preconditions.checkArgument(length >= 0,
         "Negative length is not supported. File: " + src);
-    HDDSBlockManager bm = fsd.getHDDSBlockManager();
+    BlockManager bm = fsd.getBlockManager();
     fsd.readLock();
     try {
       final INodesInPath iip = fsd.resolvePath(pc, src, DirOp.READ);
@@ -826,17 +827,17 @@ class FSDirStatAndListingOp {
       final ErasureCodingPolicy ecPolicy = FSDirErasureCodingOp.
           unprotectedGetErasureCodingPolicy(fsd.getFSNamesystem(), iip);
 
-      List<HDDSLocationInfo> blks = new ArrayList<>();
+      List<HDDSLocatedBlock> blks = new ArrayList<>();
       Set<Long> containerIDs = new HashSet<>();
       final INode node = iip.getLastINode();
       INodeFile fileNode = node.asFile();
-      for (HDDSServerLocationInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
+      for (HDDSBlockInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
         containerIDs.add(hddsLocationInfo.getContainerID());
       }
       Map<Long, ContainerWithPipeline> containerWithPipelineMap =
-          fsd.getFSNamesystem().getHDDSBlockManager()
+          ((HddsBlockManager)fsd.getFSNamesystem().getBlockManager())
               .refreshPipeline(containerIDs);
-      for (HDDSServerLocationInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
+      for (HDDSBlockInfo hddsLocationInfo : fileNode.getHddsBlocks()) {
         ContainerWithPipeline cp =
             containerWithPipelineMap.get(hddsLocationInfo.getContainerID());
         if (cp != null && !cp.getPipeline().equals(hddsLocationInfo.getPipeline())) {
@@ -844,7 +845,7 @@ class FSDirStatAndListingOp {
         }
       }
       // TODO(baoloongmao): ignore snapshot now.
-      final HDDSLocatedBlocks blocks = bm.createLocatedBlocks(
+      final LocatedBlocks blocks = bm.createLocatedBlocks(
           inode.getHddsBlocks(), fileSize, isUc, offset,
           length, needBlockToken, iip.isSnapshot(), feInfo, ecPolicy);
 
@@ -852,7 +853,7 @@ class FSDirStatAndListingOp {
       boolean updateAccessTime = fsd.isAccessTimeSupported()
           && !iip.isSnapshot()
           && now > inode.getAccessTime() + fsd.getAccessTimePrecision();
-      return new GetHDDSBlockLocationsResult(updateAccessTime, blocks);
+      return new GetBlockLocationsResult(updateAccessTime, blocks);
     } finally {
       fsd.readUnlock();
     }
@@ -866,19 +867,6 @@ class FSDirStatAndListingOp {
     }
     private GetBlockLocationsResult(
         boolean updateAccessTime, LocatedBlocks blocks) {
-      this.updateAccessTime = updateAccessTime;
-      this.blocks = blocks;
-    }
-  }
-
-  static class GetHDDSBlockLocationsResult {
-    final boolean updateAccessTime;
-    final HDDSLocatedBlocks blocks;
-    boolean updateAccessTime() {
-      return updateAccessTime;
-    }
-    private GetHDDSBlockLocationsResult(
-        boolean updateAccessTime, HDDSLocatedBlocks blocks) {
       this.updateAccessTime = updateAccessTime;
       this.blocks = blocks;
     }

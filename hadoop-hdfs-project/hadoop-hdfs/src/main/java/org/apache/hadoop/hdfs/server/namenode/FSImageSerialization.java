@@ -38,7 +38,7 @@ import org.apache.hadoop.hdfs.protocol.CachePoolInfo;
 import org.apache.hadoop.hdfs.protocol.LayoutVersion;
 import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
-import org.apache.hadoop.hdfs.server.blockmanagement.HDDSServerLocationInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HDDSBlockInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.BlockUCState;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotFSImageFormat;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.SnapshotFSImageFormat.ReferenceMap;
@@ -116,13 +116,13 @@ public class FSImageSerialization {
     }
   }
 
-  private static void writeHDDSBlocks(final HDDSServerLocationInfo[] blocks,
+  private static void writeHDDSBlocks(final HDDSBlockInfo[] blocks,
       final DataOutput out) throws IOException {
     if (blocks == null) {
       out.writeInt(0);
     } else {
       out.writeInt(blocks.length);
-      for (HDDSServerLocationInfo blk : blocks) {
+      for (HDDSBlockInfo blk : blocks) {
         blk.write(out);
       }
     }
@@ -144,18 +144,18 @@ public class FSImageSerialization {
 
     int numBlocks = in.readInt();
 
-    final HDDSServerLocationInfo[] blocks =
-        new HDDSServerLocationInfo[numBlocks];
+    final HDDSBlockInfo[] blocks =
+        new HDDSBlockInfo[numBlocks];
 
     int i = 0;
     for (; i < numBlocks - 1; i++) {
-      HDDSServerLocationInfo blk = new HDDSServerLocationInfo();
+      HDDSBlockInfo blk = new HDDSBlockInfo();
       blk.readFields(in);
       blocks[i] = blk;
     }
     // last block is UNDER_CONSTRUCTION
     if(numBlocks > 0) {
-      HDDSServerLocationInfo blk = new HDDSServerLocationInfo();
+      HDDSBlockInfo blk = new HDDSBlockInfo();
       blk.readFields(in);
       blocks[i] = blk;
       // TODO(runzhiwang): open comment
@@ -568,10 +568,10 @@ public class FSImageSerialization {
   }
 
   public static void writeCompactHddsBlockArray(
-      HDDSServerLocationInfo[] blocks, DataOutputStream out) throws IOException {
+      HDDSBlockInfo[] blocks, DataOutputStream out) throws IOException {
     WritableUtils.writeVInt(out, blocks.length);
-    HDDSServerLocationInfo prev = null;
-    for (HDDSServerLocationInfo b : blocks) {
+    HDDSBlockInfo prev = null;
+    for (HDDSBlockInfo b : blocks) {
       out.writeLong(b.getContainerID());
       out.writeLong(b.getLocalID());
       long szDelta = b.getNumBytes() -
@@ -604,14 +604,14 @@ public class FSImageSerialization {
     return ret;
   }
 
-  public static HDDSServerLocationInfo[] readCompactHddsBlockArray(
+  public static HDDSBlockInfo[] readCompactHddsBlockArray(
       DataInput in, int logVersion) throws IOException {
     int num = WritableUtils.readVInt(in);
     if (num < 0) {
       throw new IOException("Invalid block array length: " + num);
     }
-    HDDSServerLocationInfo prev = null;
-    HDDSServerLocationInfo[] ret = new HDDSServerLocationInfo[num];
+    HDDSBlockInfo prev = null;
+    HDDSBlockInfo[] ret = new HDDSBlockInfo[num];
     for (int i = 0; i < num; i++) {
       long containerId = in.readLong();
       long localId = in.readLong();
@@ -619,7 +619,7 @@ public class FSImageSerialization {
           ((prev != null) ? prev.getNumBytes() : 0);
       long offset = WritableUtils.readVLong(in) +
           ((prev != null) ? prev.getOffset() : 0);
-      ret[i] = new HDDSServerLocationInfo.Builder()
+      ret[i] = new HDDSBlockInfo.Builder()
           .setBlockID(new BlockID(containerId, localId))
           .setLength(length)
           .setOffset(offset)
