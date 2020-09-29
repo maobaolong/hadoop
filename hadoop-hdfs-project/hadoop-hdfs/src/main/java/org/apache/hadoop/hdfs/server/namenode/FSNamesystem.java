@@ -8307,13 +8307,23 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
 
   HDDSFileStatus getHDDSFileInfo(final String src, boolean resolveLink,
       boolean needLocation, boolean needBlockToken) throws IOException {
-    final String operationName = needBlockToken ? "openV2" : "getfileinfoV2";
     checkOperation(OperationCategory.READ);
+    final String operationName = needBlockToken ? "openV2" : "getfileinfoV2";
     final FSPermissionChecker pc = getPermissionChecker();
-    HDDSFileStatus fileStatus = FSDirStatAndListingOp.getHDDSFileInfo(dir, pc, src, resolveLink, true, needBlockToken);
+    HDDSFileStatus fileStatus = null;
+    readLock();
+    try {
+      checkOperation(OperationCategory.READ);
+      fileStatus = FSDirStatAndListingOp
+          .getHDDSFileInfo(dir, pc, src, resolveLink, true, needBlockToken);
+    } catch (AccessControlException e) {
+      logAuditEvent(false, operationName, src);
+      throw e;
+    } finally {
+      readUnlock();
+    }
     logAuditEvent(true, operationName, src);
     return fileStatus;
-
   }
 
   /**
