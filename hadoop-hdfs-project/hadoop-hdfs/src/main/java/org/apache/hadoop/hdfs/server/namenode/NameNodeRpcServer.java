@@ -2625,9 +2625,8 @@ public class NameNodeRpcServer implements NamenodeProtocols {
     ExtendedBlock extendBlock = null;
     if (previous != null) {
       HddsBlockInfo blockInfo = new HddsBlockInfo.Builder()
-          .setBlockID(previous.getBlockID())
+          .setBlockID(previous.getContainerID(), previous.getLocalID())
           .setLength(previous.getLength())
-          .setOffset(previous.getOffset())
           .build();
       extendBlock =
           new ExtendedBlock(namesystem.getBlockPoolId(), blockInfo);
@@ -2662,9 +2661,8 @@ public class NameNodeRpcServer implements NamenodeProtocols {
     ExtendedBlock extendBlock = null;
     if (last != null) {
       HddsBlockInfo blockInfo = new HddsBlockInfo.Builder()
-          .setBlockID(last.getBlockID())
+          .setBlockID(last.getContainerID(), last.getLocalID())
           .setLength(last.getLength())
-          .setOffset(last.getOffset())
           .build();
       extendBlock =
           new ExtendedBlock(namesystem.getBlockPoolId(), blockInfo);

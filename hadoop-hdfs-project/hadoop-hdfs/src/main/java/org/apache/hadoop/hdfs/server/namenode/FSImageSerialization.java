@@ -29,7 +29,6 @@ import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.permission.PermissionStatus;
-import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.DeprecatedUTF8;
 import org.apache.hadoop.hdfs.protocol.Block;
@@ -561,13 +560,10 @@ public class FSImageSerialization {
     for (Block b : blocks) {
       HddsBlockInfo hddsBlockInfo = (HddsBlockInfo) b;
       out.writeLong(hddsBlockInfo.getContainerID());
-      out.writeLong(hddsBlockInfo.getLocalID());
+      out.writeLong(hddsBlockInfo.getBlockId());
       long szDelta = b.getNumBytes() -
           (prev != null ? prev.getNumBytes() : 0);
       WritableUtils.writeVLong(out, szDelta);
-      long offsetDelta = hddsBlockInfo.getOffset() -
-          (prev != null ? prev.getOffset() : 0);
-      WritableUtils.writeVLong(out, offsetDelta);
       prev = hddsBlockInfo;
     }
   }
@@ -605,12 +601,9 @@ public class FSImageSerialization {
       long localId = in.readLong();
       long length = WritableUtils.readVLong(in) +
           ((prev != null) ? prev.getNumBytes() : 0);
-      long offset = WritableUtils.readVLong(in) +
-          ((prev != null) ? prev.getOffset() : 0);
       ret[i] = new HddsBlockInfo.Builder()
-          .setBlockID(new BlockID(containerId, localId))
+          .setBlockID(containerId, localId)
           .setLength(length)
-          .setOffset(offset)
           .build();
       prev = (HddsBlockInfo) ret[i];
     }

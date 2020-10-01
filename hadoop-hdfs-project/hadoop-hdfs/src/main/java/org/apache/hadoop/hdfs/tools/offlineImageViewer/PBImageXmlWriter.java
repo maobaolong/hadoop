@@ -537,8 +537,7 @@ public final class PBImageXmlWriter {
         out.print("<" + INODE_SECTION_BLOCK + ">");
         o(INODE_SECTION_CONTAINER_ID, b.getContainerId())
             .o(INODE_SECTION_LOCAL_ID, b.getLocalId())
-            .o(INODE_SECTION_LENGTH, b.getLength())
-            .o(INODE_SECTION_OFFSET, b.getOffset());
+            .o(INODE_SECTION_LENGTH, b.getLength());
         out.print("</" + INODE_SECTION_BLOCK + ">\n");
       }
       out.print("</" + INODE_SECTION_BLOCKS + ">\n");

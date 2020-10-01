@@ -207,10 +207,10 @@ public class HddsBlockManager implements BlockManager {
     HDDSLocatedBlock locationInfo = null;
     if (blk != null) {
       locationInfo = new HDDSLocatedBlock.Builder()
-          .setBlockID(blk.getBlockID())
+          .setBlockID(new BlockID(blk.getContainerID(), blk.getBlockId()))
           .setPipeline(pipeline)
           .setLength(blk.getNumBytes())
-          .setOffset(blk.getOffset())
+          .setOffset(pos)
           .build();
     }
     return locationInfo;

@@ -5317,11 +5317,9 @@ public abstract class FSEditLogOp {
     XMLUtils.addSaxString(contentHandler, "CONTAINER_ID",
         Long.toString(hddsBlock.getContainerID()));
     XMLUtils.addSaxString(contentHandler, "LOCAL_ID",
-        Long.toString(hddsBlock.getLocalID()));
+        Long.toString(hddsBlock.getBlockId()));
     XMLUtils.addSaxString(contentHandler, "LENGTH",
         Long.toString(hddsBlock.getNumBytes()));
-    XMLUtils.addSaxString(contentHandler, "OFFSET",
-        Long.toString(hddsBlock.getOffset()));
     contentHandler.endElement("", "", "BLOCK");
   }
 
@@ -5330,11 +5328,9 @@ public abstract class FSEditLogOp {
     long containerId = Long.parseLong(st.getValue("CONTAINER_ID"));
     long localId = Long.parseLong(st.getValue("LOCAL_ID"));
     long length = Long.parseLong(st.getValue("LENGTH"));
-    long offset = Long.parseLong(st.getValue("OFFSET"));
     return new HddsBlockInfo.Builder()
-        .setBlockID(new BlockID(containerId, localId))
+        .setBlockID(containerId, localId)
         .setLength(length)
-        .setOffset(offset)
         .build();
   }
 

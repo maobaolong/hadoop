@@ -289,9 +289,9 @@ public class FSDirWriteFileOp {
     final BlockType blockType = pendingFile.getBlockType();
 
     HddsBlockInfo info = new HddsBlockInfo.Builder()
-        .setBlockID(allocatedBlock.getBlockID())
+        .setContainerId(allocatedBlock.getBlockID().getContainerID())
+        .setLocalId(allocatedBlock.getBlockID().getLocalID())
         .setLength(allocatedBlock.getLength())
-        .setOffset(allocatedBlock.getOffset())
         .build();
     saveAllocatedHDDSBlock(fsn, src, inodesInPath, info, new DatanodeStorageInfo[0], blockType);
     persistNewBlock(fsn, src, pendingFile);
@@ -978,9 +978,9 @@ public class FSDirWriteFileOp {
 //    }
 
     HddsBlockInfo blockInfo = new HddsBlockInfo.Builder()
-        .setBlockID(last.getBlockID())
+        .setContainerId(last.getContainerID())
+        .setLocalId(last.getLocalID())
         .setLength(last.getLength())
-        .setOffset(last.getOffset())
         .build();
     // commit the last block and complete it if it has minimum replicas
     fsn.commitOrCompleteLastBlock(pendingFile, iip, blockInfo);

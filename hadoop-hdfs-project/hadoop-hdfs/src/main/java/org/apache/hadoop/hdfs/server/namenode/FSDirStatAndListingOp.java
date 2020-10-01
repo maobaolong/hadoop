@@ -29,8 +29,6 @@ import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.fs.QuotaUsage;
 import org.apache.hadoop.hdds.HDDSFileStatus;
 import org.apache.hadoop.hdds.HDDSLocatedBlocks;
-import org.apache.hadoop.hdds.HDDSLocatedBlock;
-import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerWithPipeline;
 import org.apache.hadoop.hdfs.DFSUtil;
 import org.apache.hadoop.hdfs.protocol.ClientProtocol;
 import org.apache.hadoop.hdfs.protocol.DirectoryListing;
@@ -38,13 +36,9 @@ import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
 import org.apache.hadoop.hdfs.protocol.HdfsConstants;
 import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
 import org.apache.hadoop.hdfs.protocol.HdfsLocatedFileStatus;
-import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.apache.hadoop.hdfs.protocol.LocatedBlocks;
 import org.apache.hadoop.hdfs.protocol.SnapshotException;
-import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
-import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockInfo;
-import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockManager;
 import org.apache.hadoop.hdfs.server.namenode.FSDirectory.DirOp;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.DirectorySnapshottableFeature;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
@@ -53,13 +47,8 @@ import org.apache.hadoop.security.AccessControlException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import static org.apache.hadoop.util.Time.now;
 
@@ -229,43 +218,12 @@ class FSDirStatAndListingOp {
         final boolean isUc = !inSnapshot && fileNode.isUnderConstruction();
         final long fileSize = !inSnapshot && isUc
             ? fileNode.computeFileSizeNotIncludingLastUcBlock() : size;
-
-        List<LocatedBlock> blks = new ArrayList<>();
-        Set<Long> containerIDs = new HashSet<>();
-        for (BlockInfo blockInfo : fileNode.getBlocks()) {
-          containerIDs.add(((HddsBlockInfo) blockInfo).getContainerID());
+        locatedBlocks = (HDDSLocatedBlocks) fsd.getBlockManager().createLocatedBlocks(
+            fileNode.getBlocks(snapshot), fileSize, isUc, 0L, size,
+            needBlockToken, inSnapshot, feInfo, ecPolicy);
+        if (locatedBlocks == null) {
+          locatedBlocks = new HDDSLocatedBlocks();
         }
-        Map<Long, ContainerWithPipeline> containerWithPipelineMap =
-            ((HddsBlockManager)fsd.getFSNamesystem().getBlockManager())
-                .refreshPipeline(containerIDs);
-        for (BlockInfo blockInfo : fileNode.getBlocks()) {
-          HddsBlockInfo hddsBlockInfo = (HddsBlockInfo) blockInfo;
-          ContainerWithPipeline cp =
-              containerWithPipelineMap.get(hddsBlockInfo.getContainerID());
-
-          HDDSLocatedBlock info = new HDDSLocatedBlock.Builder()
-              .setBlockID(hddsBlockInfo.getBlockID())
-              .setPipeline(cp.getPipeline())
-              .setLength(hddsBlockInfo.getNumBytes())
-              .setOffset(hddsBlockInfo.getOffset())
-              .build();
-          blks.add(info);
-        }
-
-        HddsBlockInfo last = (HddsBlockInfo) fileNode.getLastBlock();
-        HDDSLocatedBlock locationInfo = null;
-        if (last != null) {
-          ContainerWithPipeline cp =
-              containerWithPipelineMap.get(last.getContainerID());
-          locationInfo = new HDDSLocatedBlock.Builder()
-              .setBlockID(last.getBlockID())
-              .setPipeline(cp.getPipeline())
-              .setLength(last.getNumBytes())
-              .setOffset(last.getOffset())
-              .build();
-        }
-        locatedBlocks = new HDDSLocatedBlocks(
-            fileSize, false, blks, locationInfo, true, null, null);
       }
     } else if (node.isDirectory()) {
       isSnapShottable = node.asDirectory().isSnapshottable();
