@@ -307,6 +307,7 @@ import org.apache.hadoop.metrics2.lib.MetricsRegistry;
 import org.apache.hadoop.metrics2.lib.MutableRatesWithAggregation;
 import org.apache.hadoop.metrics2.util.MBeans;
 import org.apache.hadoop.net.Node;
+import org.apache.hadoop.ozone.common.BlockGroup;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
@@ -3101,8 +3102,6 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     try {
       checkOperation(OperationCategory.WRITE);
       checkNameNodeSafeMode("Cannot delete " + src);
-      // TODO(micahzhao): Here we need to add hddsDelete in FSDirDeleteOp,
-      //  and return List<BlockGroup>.
       toRemovedBlocks = FSDirDeleteOp.delete(
           this, pc, src, recursive, logRetryCache);
       ret = toRemovedBlocks != null;
@@ -3114,10 +3113,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     }
     getEditLog().logSync();
     if (toRemovedBlocks != null) {
-      // TODO(micahzhao): Here we need to call
-      //  removeBlocks(List<BlockGroup> blocksList).
-      //  Remove blocks through SCM.
-      removeBlocks(toRemovedBlocks); // Incremental deletion of blocks
+      removeHddsBlocks(toRemovedBlocks);
     }
     logAuditEvent(true, operationName, src);
     return ret;
@@ -8438,6 +8434,19 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     // TODO(baoloongmao): open this after a discussion
 //    sortLocatedBlocks(clientMachine, blocks);
     return blocks;
+  }
+
+  /**
+   * remove List<BlockGroup> toDeleteList from HDDS use hddsBlockManager.
+   *
+   * @param blocks
+   *          An instance of {@link BlocksMapUpdateInfo} which contains a list
+   *          of blocks that need to be removed from blocksMap
+   */
+  void removeHddsBlocks(BlocksMapUpdateInfo blocks) {
+    List<BlockGroup> toDeleteList = blocks.getToDeleteBlockGroupList();
+    HddsBlockManager hddsBlockManager = (HddsBlockManager)getBlockManager();
+    hddsBlockManager.removeBlocks(toDeleteList);
   }
 }
 
