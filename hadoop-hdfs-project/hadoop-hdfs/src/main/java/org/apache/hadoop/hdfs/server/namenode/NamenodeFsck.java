@@ -36,10 +36,12 @@ import java.util.TreeSet;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.hadoop.hdds.HDDSLocatedBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hdds.HDDSLocatedBlocks;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.fs.UnresolvedLinkException;
@@ -129,6 +131,7 @@ public class NamenodeFsck implements DataEncryptionKeyFactory {
 
   private final NameNode namenode;
   private final BlockManager blockManager;
+  private final BlockManager hddsBlockManager;
   private final NetworkTopology networktopology;
   private final int totalDatanodes;
   private final InetAddress remoteAddress;
@@ -206,6 +209,7 @@ public class NamenodeFsck implements DataEncryptionKeyFactory {
     this.conf = conf;
     this.namenode = namenode;
     this.blockManager = namenode.getNamesystem().getBlockManager();
+    this.hddsBlockManager = namenode.getNamesystem().getFSDirectory().getHDDSBlockManager();
     this.networktopology = networktopology;
     this.out = out;
     this.totalDatanodes = totalDatanodes;
@@ -415,8 +419,6 @@ public class NamenodeFsck implements DataEncryptionKeyFactory {
 
         out.print("\nStatus: ");
         out.println(replRes.isHealthy() && ecRes.isHealthy() ? "HEALTHY" : "CORRUPT");
-        out.println(" Number of data-nodes:\t" + totalDatanodes);
-        out.println(" Number of racks:\t\t" + networktopology.getNumOfRacks());
         out.println(" Total dirs:\t\t\t" + totalDirs);
         out.println(" Total symlinks:\t\t" + totalSymlinks);
         out.println("\nReplicated Blocks:");
@@ -507,7 +509,7 @@ public class NamenodeFsck implements DataEncryptionKeyFactory {
       totalSymlinks++;
       return;
     }
-    LocatedBlocks blocks = getBlockLocations(path, file);
+    HDDSLocatedBlocks blocks = getBlockLocations(path, file);
     if (blocks == null) { // the file is deleted
       return;
     }
@@ -547,17 +549,20 @@ public class NamenodeFsck implements DataEncryptionKeyFactory {
     } while (thisListing.hasMore());
   }
 
-  private LocatedBlocks getBlockLocations(String path, HdfsFileStatus file)
+  private HDDSLocatedBlocks getBlockLocations(String path, HdfsFileStatus file)
       throws IOException {
     long fileLen = file.getLen();
-    LocatedBlocks blocks = null;
+    HDDSLocatedBlocks blocks = null;
     final FSNamesystem fsn = namenode.getNamesystem();
     fsn.readLock();
     try {
-      blocks = FSDirStatAndListingOp.getBlockLocations(
-          fsn.getFSDirectory(), fsn.getPermissionChecker(),
-          path, 0, fileLen, false)
-          .blocks;
+      blocks = (HDDSLocatedBlocks)FSDirStatAndListingOp.getHDDSBlockLocations(
+          fsn.getFSDirectory(),
+          fsn.getPermissionChecker(),
+          path,
+          0,
+          fileLen,
+          false).blocks;
     } catch (FileNotFoundException fnfe) {
       blocks = null;
     } finally {
@@ -567,7 +572,7 @@ public class NamenodeFsck implements DataEncryptionKeyFactory {
   }
 
   private void collectFileSummary(String path, HdfsFileStatus file, Result res,
-      LocatedBlocks blocks) throws IOException {
+      HDDSLocatedBlocks blocks) throws IOException {
     long fileLen = file.getLen();
     boolean isOpen = blocks.isUnderConstruction();
     if (isOpen && !showOpenFiles) {
@@ -682,75 +687,34 @@ public class NamenodeFsck implements DataEncryptionKeyFactory {
     return sb.toString();
   }
 
+  // TODO(runzhiwang): add info of corrupt, ec, under constrution block according to hdfs
   private void collectBlocksSummary(String parent, HdfsFileStatus file,
-      Result res, LocatedBlocks blocks) throws IOException {
+      Result res, HDDSLocatedBlocks blocks) throws IOException {
     String path = file.getFullName(parent);
     boolean isOpen = blocks.isUnderConstruction();
     if (isOpen && !showOpenFiles) {
       return;
     }
     int missing = 0;
-    int corrupt = 0;
     long missize = 0;
-    long corruptSize = 0;
     int underReplicatedPerFile = 0;
-    int misReplicatedPerFile = 0;
     StringBuilder report = new StringBuilder();
     int blockNumber = 0;
-    final LocatedBlock lastBlock = blocks.getLastLocatedBlock();
-    for (LocatedBlock lBlk : blocks.getLocatedBlocks()) {
-      ExtendedBlock block = lBlk.getBlock();
-      if (!blocks.isLastBlockComplete() && lastBlock != null &&
-          lastBlock.getBlock().equals(block)) {
-        // this is the last block and this is not complete. ignore it since
-        // it is under construction
-        continue;
-      }
-
-      final BlockInfo storedBlock = blockManager.getStoredBlock(
-          block.getLocalBlock());
-      final int minReplication = blockManager.getMinStorageNum(storedBlock);
-      // count decommissionedReplicas / decommissioningReplicas
-      NumberReplicas numberReplicas = blockManager.countNodes(storedBlock);
-      int decommissionedReplicas = numberReplicas.decommissioned();
-      int decommissioningReplicas = numberReplicas.decommissioning();
-      int enteringMaintenanceReplicas =
-          numberReplicas.liveEnteringMaintenanceReplicas();
-      int inMaintenanceReplicas =
-          numberReplicas.maintenanceNotForReadReplicas();
-      res.decommissionedReplicas +=  decommissionedReplicas;
-      res.decommissioningReplicas += decommissioningReplicas;
-      res.enteringMaintenanceReplicas += enteringMaintenanceReplicas;
-      res.inMaintenanceReplicas += inMaintenanceReplicas;
+    for (LocatedBlock block : blocks.getLocatedBlocks()) {
+      HDDSLocatedBlock lBlk = (HDDSLocatedBlock) block;
+      final int minReplication = hddsBlockManager.getMinStorageNum(null);
 
       // count total replicas
-      int liveReplicas = numberReplicas.liveReplicas();
-      int totalReplicasPerBlock = liveReplicas + decommissionedReplicas
-          + decommissioningReplicas
-          + enteringMaintenanceReplicas
-          + inMaintenanceReplicas;
-      res.totalReplicas += totalReplicasPerBlock;
-
-      boolean isMissing;
-      if (storedBlock.isStriped()) {
-        isMissing = totalReplicasPerBlock < minReplication;
-      } else {
-        isMissing = totalReplicasPerBlock == 0;
-      }
+      int liveReplicas = lBlk.getPipeline().getNodes().size();
+      res.totalReplicas += liveReplicas;
+      boolean isMissing = liveReplicas < minReplication;
 
       // count expected replicas
-      short targetFileReplication;
-      if (file.getErasureCodingPolicy() != null) {
-        assert storedBlock instanceof BlockInfoStriped;
-        targetFileReplication = ((BlockInfoStriped) storedBlock)
-            .getRealTotalBlockNum();
-      } else {
-        targetFileReplication = file.getReplication();
-      }
+      short targetFileReplication = file.getReplication();
       res.numExpectedReplicas += targetFileReplication;
 
       // count under min repl'd blocks
-      if(totalReplicasPerBlock < minReplication){
+      if(liveReplicas < minReplication){
         res.numUnderMinReplicatedBlocks++;
       }
 
@@ -760,143 +724,59 @@ public class NamenodeFsck implements DataEncryptionKeyFactory {
         res.numOverReplicatedBlocks += 1;
       }
 
-      // count corrupt blocks
-      boolean isCorrupt = lBlk.isCorrupt();
-      if (isCorrupt) {
-        res.addCorrupt(block.getNumBytes());
-        corrupt++;
-        corruptSize += block.getNumBytes();
-        out.print("\n" + path + ": CORRUPT blockpool " +
-            block.getBlockPoolId() + " block " + block.getBlockName() + "\n");
-      }
-
       // count minimally replicated blocks
-      if (totalReplicasPerBlock >= minReplication)
+      if (liveReplicas >= minReplication)
         res.numMinReplicatedBlocks++;
 
       // count missing replicas / under replicated blocks
-      if (totalReplicasPerBlock < targetFileReplication && !isMissing) {
-        res.missingReplicas += (targetFileReplication - totalReplicasPerBlock);
+      if (liveReplicas < targetFileReplication && !isMissing) {
+        res.missingReplicas += (targetFileReplication - liveReplicas);
         res.numUnderReplicatedBlocks += 1;
         underReplicatedPerFile++;
         if (!showFiles) {
           out.print("\n" + path + ": ");
         }
-        out.println(" Under replicated " + block + ". Target Replicas is "
+        out.println(" Under replicated " + lBlk + ". Target Replicas is "
             + targetFileReplication + " but found "
-            + liveReplicas+ " live replica(s), "
-            + decommissionedReplicas + " decommissioned replica(s), "
-            + decommissioningReplicas + " decommissioning replica(s)"
-            + (this.showMaintenanceState ? (enteringMaintenanceReplicas
-            + ", entering maintenance replica(s) and " + inMaintenanceReplicas
-            + " in maintenance replica(s).") : "."));
-      }
-
-      // count mis replicated blocks
-      BlockPlacementStatus blockPlacementStatus = bpPolicies.getPolicy(
-          lBlk.getBlockType()).verifyBlockPlacement(lBlk.getLocations(),
-          targetFileReplication);
-      if (!blockPlacementStatus.isPlacementPolicySatisfied()) {
-        res.numMisReplicatedBlocks++;
-        misReplicatedPerFile++;
-        if (!showFiles) {
-          if(underReplicatedPerFile == 0)
-            out.println();
-          out.print(path + ": ");
-        }
-        out.println(" Replica placement policy is violated for " +
-                    block + ". " + blockPlacementStatus.getErrorDescription());
-      }
-
-      // count storage summary
-      if (this.showStoragePolcies && lBlk.getStorageTypes() != null) {
-        countStorageTypeSummary(file, lBlk);
+            + liveReplicas+ " live replica(s)");
       }
 
       // report
-      String blkName = block.toString();
-      report.append(blockNumber + ". " + blkName + " len=" +
-          block.getNumBytes());
-      if (isMissing && !isCorrupt) {
-        // If the block is corrupted, it means all its available replicas are
-        // corrupted in the case of replication, and it means the state of the
-        // block group is unrecoverable due to some corrupted intenal blocks in
-        // the case of EC. We don't mark it as missing given these available
-        // replicas/internal-blocks might still be accessible as the block might
-        // be incorrectly marked as corrupted by client machines.
+      report.append(blockNumber + ". " + lBlk.getBlockID() + " len=" +
+          lBlk.getLength());
+      if (isMissing) {
         report.append(" MISSING!");
-        res.addMissing(blkName, block.getNumBytes());
+        res.addMissing(lBlk.getBlockId(), lBlk.getLength());
         missing++;
-        missize += block.getNumBytes();
-        if (storedBlock.isStriped()) {
-          report.append(" Live_repl=" + liveReplicas);
-          String info = getReplicaInfo(storedBlock);
-          if (!info.isEmpty()){
-            report.append(" ").append(info);
-          }
-        }
+        missize += lBlk.getLength();
       } else {
         report.append(" Live_repl=" + liveReplicas);
-        String info = getReplicaInfo(storedBlock);
-        if (!info.isEmpty()){
-          report.append(" ").append(info);
-        }
       }
       report.append('\n');
       blockNumber++;
     }
 
-    //display under construction block info.
-    if (!blocks.isLastBlockComplete() && lastBlock != null) {
-      ExtendedBlock block = lastBlock.getBlock();
-      String blkName = block.toString();
-      BlockInfo storedBlock = blockManager.getStoredBlock(
-          block.getLocalBlock());
-      DatanodeStorageInfo[] storages = storedBlock
-          .getUnderConstructionFeature().getExpectedStorageLocations();
-      report.append('\n');
-      report.append("Under Construction Block:\n");
-      report.append(blockNumber).append(". ").append(blkName);
-      report.append(" len=").append(block.getNumBytes());
-      report.append(" Expected_repl=" + storages.length);
-      String info=getReplicaInfo(storedBlock);
-      if (!info.isEmpty()){
-        report.append(" ").append(info);
-      }
-    }
-
     // count corrupt file & move or delete if necessary
-    if ((missing > 0) || (corrupt > 0)) {
+    if (missing > 0) {
       if (!showFiles) {
-        if (missing > 0) {
-          out.print("\n" + path + ": MISSING " + missing
-              + " blocks of total size " + missize + " B.");
-        }
-        if (corrupt > 0) {
-          out.print("\n" + path + ": CORRUPT " + corrupt
-              + " blocks of total size " + corruptSize + " B.");
-        }
+        out.print("\n" + path + ": MISSING " + missing
+            + " blocks of total size " + missize + " B.");
       }
       res.corruptFiles++;
       if (isOpen) {
         LOG.info("Fsck: ignoring open file " + path);
       } else {
-        if (doMove) copyBlocksToLostFound(parent, file, blocks);
+        //TODO(runzhiwang): support move
+        //if (doMove) copyBlocksToLostFound(parent, file, blocks);
         if (doDelete) deleteCorruptedFile(path);
       }
     }
 
     if (showFiles) {
-      if (missing > 0 || corrupt > 0) {
-        if (missing > 0) {
-          out.print(" MISSING " + missing + " blocks of total size " +
-              missize + " B\n");
-        }
-        if (corrupt > 0) {
-          out.print(" CORRUPT " + corrupt + " blocks of total size " +
-              corruptSize + " B\n");
-        }
-      } else if (underReplicatedPerFile == 0 && misReplicatedPerFile == 0) {
+      if (missing > 0) {
+        out.print(" MISSING " + missing + " blocks of total size " +
+            missize + " B\n");
+      } else if (underReplicatedPerFile == 0) {
         out.print(" OK\n");
       }
       if (showBlocks) {
