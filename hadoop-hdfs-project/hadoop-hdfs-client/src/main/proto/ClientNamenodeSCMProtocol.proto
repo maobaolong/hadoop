@@ -33,6 +33,12 @@ import "hdds.proto";
 import "hdfs.proto";
 import "acl.proto";
 
+message HddsBlockInfoProto {
+    required uint64 containerId = 1;
+    required uint64 localId = 2;
+    required uint64 length = 3;
+}
+
 message HddsLocation {
     required hadoop.hdds.BlockID blockID = 1;
     required uint64 offset = 3;

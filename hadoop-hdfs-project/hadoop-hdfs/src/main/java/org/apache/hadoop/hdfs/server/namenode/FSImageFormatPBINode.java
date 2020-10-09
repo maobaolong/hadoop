@@ -26,7 +26,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdfs.server.blockmanagement.*;
 import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockInfo;
 import org.slf4j.Logger;
@@ -291,7 +291,7 @@ public final class FSImageFormatPBINode {
     private INodeFile loadINodeFile(INodeSection.INode n) {
       assert n.getType() == INodeSection.INode.Type.FILE;
       INodeSection.INodeFile f = n.getFile();
-      List<HdfsProtos.HDDSServerLocationInfoProto> bp = f.getHddsBlocksList();
+      List<ClientNamenodeSCMProtocolProtos.HddsBlockInfoProto> bp = f.getHddsBlocksList();
       BlockType blockType = PBHelperClient.convert(f.getBlockType());
       LoaderContext state = parent.getLoaderContext();
       boolean isStriped = f.hasErasureCodingPolicyID();
@@ -317,9 +317,9 @@ public final class FSImageFormatPBINode {
 //        }
 //      }
 
-      HddsBlockInfo[] blocks = new HddsBlockInfo[bp.size()];
+      BlockInfo[] blocks = new BlockInfo[bp.size()];
       for (int i = 0; i < bp.size(); ++i) {
-        HdfsProtos.HDDSServerLocationInfoProto b = bp.get(i);
+        ClientNamenodeSCMProtocolProtos.HddsBlockInfoProto b = bp.get(i);
         blocks[i] = HddsBlockInfo.getFromProtobuf(b);
       }
 
@@ -640,11 +640,11 @@ public final class FSImageFormatPBINode {
     private void save(OutputStream out, INodeFile n) throws IOException {
       INodeSection.INodeFile.Builder b = buildINodeFile(n,
           parent.getSaverContext());
-      HddsBlockInfo[] blocks = n.getHddsBlocks();
+      BlockInfo[] blocks = n.getBlocks();
 
       if (blocks != null) {
-        for (HddsBlockInfo block : blocks) {
-          b.addHddsBlocks(block.getProtobuf());
+        for (BlockInfo block : blocks) {
+          b.addHddsBlocks(((HddsBlockInfo) block).getProtobuf());
         }
       }
 

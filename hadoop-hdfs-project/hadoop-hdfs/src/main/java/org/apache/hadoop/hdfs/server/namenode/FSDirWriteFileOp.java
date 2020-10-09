@@ -270,7 +270,7 @@ public class FSDirWriteFileOp {
   }
 
   static HDDSLocatedBlock storeHDDSAllocatedBlock(FSNamesystem fsn, String src,
-      long fileId, String clientName, HDDSLocatedBlock previous,
+      long fileId, String clientName, ExtendedBlock previous,
       HDDSLocatedBlock allocatedBlock) throws IOException {
     // Run the full analysis again, since things could have changed
     // while chooseTarget() was executing.
@@ -280,15 +280,20 @@ public class FSDirWriteFileOp {
     final INodeFile pendingFile = fileState.inode;
     src = fileState.path;
 
+    // commit the last block and complete it if it has minimum replicas
+    fsn.commitOrCompleteLastBlock(pendingFile, fileState.iip,
+        ExtendedBlock.getLocalBlock(previous));
+
     INodesInPath inodesInPath = INodesInPath.fromINode(pendingFile);
-    final INodeFile fileINode = inodesInPath.getLastINode().asFile();
+    // allocate new block, record block locations in INode.
+    final BlockType blockType = pendingFile.getBlockType();
 
     HddsBlockInfo info = new HddsBlockInfo.Builder()
-        .setBlockID(allocatedBlock.getBlockID())
+        .setContainerId(allocatedBlock.getBlockID().getContainerID())
+        .setLocalId(allocatedBlock.getBlockID().getLocalID())
         .setLength(allocatedBlock.getLength())
-        .setOffset(allocatedBlock.getOffset())
         .build();
-    fileINode.addHDDSBlock(info);
+    saveAllocatedHDDSBlock(fsn, src, inodesInPath, info, new DatanodeStorageInfo[0], blockType);
     persistNewBlock(fsn, src, pendingFile);
     return allocatedBlock;
   }
@@ -560,6 +565,41 @@ public class FSDirWriteFileOp {
     }
   }
 
+  private static BlockInfo addHDDSBlock(FSDirectory fsd, String path,
+      INodesInPath inodesInPath, Block block, DatanodeStorageInfo[] targets,
+      BlockType blockType) throws IOException {
+    fsd.writeLock();
+    try {
+      final INodeFile fileINode = inodesInPath.getLastINode().asFile();
+      Preconditions.checkState(fileINode.isUnderConstruction());
+
+      // associate new last block for the file
+      final BlockInfo blockInfo;
+      {
+        // check quota limits and updated space consumed
+        fsd.updateCount(inodesInPath, 0, fileINode.getPreferredBlockSize(),
+            fileINode.getFileReplication(), true);
+
+        short numLocations = fileINode.getFileReplication();
+        blockInfo = (BlockInfo) block;
+        blockInfo.convertToBlockUnderConstruction(
+            HdfsServerConstants.BlockUCState.UNDER_CONSTRUCTION, targets);
+      }
+      fsd.getBlockManager().addBlockCollection(blockInfo, fileINode);
+      fileINode.addBlock(blockInfo);
+
+      if(NameNode.stateChangeLog.isDebugEnabled()) {
+        NameNode.stateChangeLog.debug("DIR* FSDirectory.addBlock: "
+            + path + " with " + block
+            + " block is added to the in-memory "
+            + "file system");
+      }
+      return blockInfo;
+    } finally {
+      fsd.writeUnlock();
+    }
+  }
+
   /**
    * Add the given filename to the fs.
    * @return the new INodesInPath instance that contains the new INode
@@ -764,7 +804,7 @@ public class FSDirWriteFileOp {
       Short replication, Byte ecPolicyID, long preferredBlockSize,
       byte storagePolicyId, BlockType blockType) {
     return new INodeFile(id, null, permissions, mtime, atime,
-        INodeFile.HDDS_EMPTY_ARRAY, replication, ecPolicyID, preferredBlockSize,
+        BlockInfo.EMPTY_ARRAY, replication, ecPolicyID, preferredBlockSize,
         storagePolicyId, blockType);
   }
 
@@ -805,6 +845,16 @@ public class FSDirWriteFileOp {
       BlockType blockType) throws IOException {
     assert fsn.hasWriteLock();
     BlockInfo b = addBlock(fsn.dir, src, inodesInPath, newBlock, targets,
+        blockType);
+    logAllocatedBlock(src, b);
+    DatanodeStorageInfo.incrementBlocksScheduled(targets);
+  }
+
+  private static void saveAllocatedHDDSBlock(FSNamesystem fsn, String src,
+      INodesInPath inodesInPath, Block newBlock, DatanodeStorageInfo[] targets,
+      BlockType blockType) throws IOException {
+    assert fsn.hasWriteLock();
+    BlockInfo b = addHDDSBlock(fsn.dir, src, inodesInPath, newBlock, targets,
         blockType);
     logAllocatedBlock(src, b);
     DatanodeStorageInfo.incrementBlocksScheduled(targets);
@@ -927,8 +977,13 @@ public class FSDirWriteFileOp {
 //      return false;
 //    }
 
+    HddsBlockInfo blockInfo = new HddsBlockInfo.Builder()
+        .setContainerId(last.getContainerID())
+        .setLocalId(last.getLocalID())
+        .setLength(last.getLength())
+        .build();
     // commit the last block and complete it if it has minimum replicas
-    fsn.hddsCommitOrCompleteLastBlock(pendingFile, iip, last);
+    fsn.commitOrCompleteLastBlock(pendingFile, iip, blockInfo);
 
     fsn.finalizeINodeFileUnderConstruction(src, pendingFile,
         Snapshot.CURRENT_STATE_ID, true);
@@ -938,7 +993,7 @@ public class FSDirWriteFileOp {
   static ValidateAddBlockResult validateAddHDDSBlock(
       FSNamesystem fsn, FSPermissionChecker pc,
       String src, long fileId, String clientName,
-      HDDSLocatedBlock previous, HDDSLocatedBlock[] onRetryBlock) throws IOException {
+      ExtendedBlock previous, HDDSLocatedBlock[] onRetryBlock) throws IOException {
     final long blockSize;
     final short numTargets;
     final byte storagePolicyID;
@@ -961,7 +1016,7 @@ public class FSDirWriteFileOp {
 //    if (!fsn.checkFileProgress(src, pendingFile, false)) {
 //      throw new NotReplicatedYetException("Not replicated yet: " + src);
 //    }
-    if (pendingFile.getHddsBlocks().length >= fsn.maxBlocksPerFile) {
+    if (pendingFile.getBlocks().length >= fsn.maxBlocksPerFile) {
       throw new IOException("File has reached the limit on maximum number of"
           + " blocks (" + DFSConfigKeys.DFS_NAMENODE_MAX_BLOCKS_PER_FILE_KEY
           + "): " + pendingFile.getBlocks().length + " >= "
@@ -991,32 +1046,5 @@ public class FSDirWriteFileOp {
       FSDirWriteFileOp.ValidateAddBlockResult r) throws IOException {
     return ((HddsBlockManager)fs.getBlockManager()).getHDDSBlockFromSCM(
         excludeList, r.blockSize, r.numTargets);
-  }
-
-  static boolean unprotectedRemoveHDDSBlock(
-      FSDirectory fsd, String path, INodesInPath iip, INodeFile fileNode,
-      HddsBlockInfo block) throws IOException {
-    // modify file-> block and blocksMap
-    // fileNode should be under construction
-    HddsBlockInfo lastBlock = fileNode.removeHDDSLastBlock(block);
-    if (lastBlock == null) {
-      return false;
-    }
-//    if (uc.getUnderConstructionFeature() != null) {
-//      DatanodeStorageInfo.decrementBlocksScheduled(uc
-//          .getUnderConstructionFeature().getExpectedStorageLocations());
-//    }
-//    fsd.getBlockManager().removeBlockFromMap(uc);
-
-    if(NameNode.stateChangeLog.isDebugEnabled()) {
-      NameNode.stateChangeLog.debug("DIR* FSDirectory.removeBlock: "
-          +path+" with "+block
-          +" block is removed from the file system");
-    }
-
-    // update space consumed
-    fsd.updateCount(iip, 0, -fileNode.getPreferredBlockSize(),
-        fileNode.getPreferredBlockReplication(), true);
-    return true;
   }
 }

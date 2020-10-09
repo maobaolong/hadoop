@@ -27,23 +27,25 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 
+import org.apache.hadoop.hdfs.protocol.Block;
+import org.apache.hadoop.hdfs.protocol.CacheDirectiveInfo;
+import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
+import org.apache.hadoop.hdfs.protocol.HdfsConstants;
+import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
+import org.apache.hadoop.hdfs.protocol.LastBlockWithStatus;
+import org.apache.hadoop.hdfs.protocol.LayoutVersion;
+import org.apache.hadoop.hdfs.protocol.LocatedBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.XAttrSetFlag;
-import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
-import org.apache.hadoop.hdfs.protocol.HdfsConstants;
-import org.apache.hadoop.hdfs.protocol.LocatedBlock;
-import org.apache.hadoop.hdfs.protocol.CacheDirectiveInfo;
-import org.apache.hadoop.hdfs.protocol.HdfsFileStatus;
-import org.apache.hadoop.hdfs.protocol.LastBlockWithStatus;
-import org.apache.hadoop.hdfs.protocol.LayoutVersion;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockIdManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
-import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
+import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.BlockUCState;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.RollingUpgradeStartupOption;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.StartupOption;
 import org.apache.hadoop.hdfs.server.common.Storage;
@@ -562,7 +564,7 @@ public class FSEditLogLoader {
       String path = renameReservedPathsOnUpgrade(addBlockOp.getPath(), logVersion);
       if (FSNamesystem.LOG.isDebugEnabled()) {
         FSNamesystem.LOG.debug(op.opCode + ": " + path +
-            " new block id : " + addBlockOp.getLastBlock().getBlockID());
+            " new block id : " + addBlockOp.getLastBlock().getBlockName());
       }
       INodesInPath iip = fsDir.getINodesInPath(path, DirOp.READ);
       INodeFile oldFile = INodeFile.valueOf(iip.getLastINode(), path);
@@ -1070,32 +1072,32 @@ public class FSEditLogLoader {
    */
   private void addNewBlock(AddBlockOp op, INodeFile file,
       ErasureCodingPolicy ecPolicy) throws IOException {
-    HddsBlockInfo[] oldBlocks = file.getHddsBlocks();
-    HddsBlockInfo pBlock = op.getPenultimateBlock();
-    HddsBlockInfo newBlock= op.getLastBlock();
+    BlockInfo[] oldBlocks = file.getBlocks();
+    Block pBlock = op.getPenultimateBlock();
+    Block newBlock= op.getLastBlock();
     
     if (pBlock != null) { // the penultimate block is not null
       assert oldBlocks != null && oldBlocks.length > 0;
       // compare pBlock with the last block of oldBlocks
-      HddsBlockInfo oldLastBlock = oldBlocks[oldBlocks.length - 1];
-//      if (oldLastBlock.getBlockId() != pBlock.getBlockId()
-//          || oldLastBlock.getGenerationStamp() != pBlock.getGenerationStamp()) {
-//        throw new IOException(
-//            "Mismatched block IDs or generation stamps for the old last block of file "
-//                + op.getPath() + ", the old last block is " + oldLastBlock
-//                + ", and the block read from editlog is " + pBlock);
-//      }
-      
-      oldLastBlock.setLength(pBlock.getLength());
-//      if (!oldLastBlock.isComplete()) {
-//        fsNamesys.getBlockManager().forceCompleteBlock(oldLastBlock);
-//        fsNamesys.getBlockManager().processQueuedMessagesForBlock(pBlock);
-//      }
+      BlockInfo oldLastBlock = oldBlocks[oldBlocks.length - 1];
+      if (oldLastBlock.getBlockId() != pBlock.getBlockId()
+          || oldLastBlock.getGenerationStamp() != pBlock.getGenerationStamp()) {
+        throw new IOException(
+            "Mismatched block IDs or generation stamps for the old last block of file "
+                + op.getPath() + ", the old last block is " + oldLastBlock
+                + ", and the block read from editlog is " + pBlock);
+      }
+
+      oldLastBlock.setNumBytes(pBlock.getNumBytes());
+      if (!oldLastBlock.isComplete()) {
+        fsNamesys.getBlockManager().forceCompleteBlock(oldLastBlock);
+        fsNamesys.getBlockManager().processQueuedMessagesForBlock(pBlock);
+      }
     } else { // the penultimate block is null
       Preconditions.checkState(oldBlocks == null || oldBlocks.length == 0);
     }
     // add the new block
-//    final BlockInfo newBlockInfo;
+    final BlockInfo newBlockInfo = (BlockInfo) newBlock;
 //    boolean isStriped = ecPolicy != null;
 //    if (isStriped) {
 //      newBlockInfo = new BlockInfoStriped(newBlock, ecPolicy);
@@ -1103,11 +1105,11 @@ public class FSEditLogLoader {
 //      newBlockInfo = new BlockInfoContiguous(newBlock,
 //          file.getPreferredBlockReplication());
 //    }
-//    newBlockInfo.convertToBlockUnderConstruction(
-//        BlockUCState.UNDER_CONSTRUCTION, null);
-//    fsNamesys.getBlockManager().addBlockCollectionWithCheck(newBlockInfo, file);
-    file.addHDDSBlock(newBlock);
-//    fsNamesys.getBlockManager().processQueuedMessagesForBlock(newBlock);
+    newBlockInfo.convertToBlockUnderConstruction(
+        BlockUCState.UNDER_CONSTRUCTION, null);
+    fsNamesys.getBlockManager().addBlockCollectionWithCheck(newBlockInfo, file);
+    file.addBlock(newBlockInfo);
+    fsNamesys.getBlockManager().processQueuedMessagesForBlock(newBlock);
   }
   
   /**
@@ -1118,8 +1120,8 @@ public class FSEditLogLoader {
       INodesInPath iip, INodeFile file, ErasureCodingPolicy ecPolicy)
       throws IOException {
     // Update its block list
-    HddsBlockInfo[] oldBlocks = file.getHddsBlocks();
-    HddsBlockInfo[] newBlocks = op.getBlocks();
+    BlockInfo[] oldBlocks = file.getBlocks();
+    Block[] newBlocks = op.getBlocks();
     String path = op.getPath();
     
     // Are we only updating the last block's gen stamp.
@@ -1127,35 +1129,35 @@ public class FSEditLogLoader {
     
     // First, update blocks in common
     for (int i = 0; i < oldBlocks.length && i < newBlocks.length; i++) {
-      HddsBlockInfo oldBlock = oldBlocks[i];
-      HddsBlockInfo newBlock = newBlocks[i];
+      BlockInfo oldBlock = oldBlocks[i];
+      Block newBlock = newBlocks[i];
       
       boolean isLastBlock = i == newBlocks.length - 1;
-//      if (oldBlock.getBlockId() != newBlock.getBlockId() ||
-//          (oldBlock.getGenerationStamp() != newBlock.getGenerationStamp() &&
-//              !(isGenStampUpdate && isLastBlock))) {
-//        throw new IOException("Mismatched block IDs or generation stamps, " +
-//            "attempting to replace block " + oldBlock + " with " + newBlock +
-//            " as block # " + i + "/" + newBlocks.length + " of " +
-//            path);
-//      }
-//
-      oldBlock.setLength(newBlock.getNumBytes());
-//      boolean changeMade =
-//        oldBlock.getGenerationStamp() != newBlock.getGenerationStamp();
-//      oldBlock.setGenerationStamp(newBlock.getGenerationStamp());
-//
-//      if (!oldBlock.isComplete() &&
-//          (!isLastBlock || op.shouldCompleteLastBlock())) {
-//        changeMade = true;
-//        fsNamesys.getBlockManager().forceCompleteBlock(oldBlock);
-//      }
-//      if (changeMade) {
-//        // The state or gen-stamp of the block has changed. So, we may be
-//        // able to process some messages from datanodes that we previously
-//        // were unable to process.
-//        fsNamesys.getBlockManager().processQueuedMessagesForBlock(newBlock);
-//      }
+      if (oldBlock.getBlockId() != newBlock.getBlockId() ||
+          (oldBlock.getGenerationStamp() != newBlock.getGenerationStamp() &&
+              !(isGenStampUpdate && isLastBlock))) {
+        throw new IOException("Mismatched block IDs or generation stamps, " +
+            "attempting to replace block " + oldBlock + " with " + newBlock +
+            " as block # " + i + "/" + newBlocks.length + " of " +
+            path);
+      }
+
+      oldBlock.setNumBytes(newBlock.getNumBytes());
+      boolean changeMade =
+        oldBlock.getGenerationStamp() != newBlock.getGenerationStamp();
+      oldBlock.setGenerationStamp(newBlock.getGenerationStamp());
+
+      if (!oldBlock.isComplete() &&
+          (!isLastBlock || op.shouldCompleteLastBlock())) {
+        changeMade = true;
+        fsNamesys.getBlockManager().forceCompleteBlock(oldBlock);
+      }
+      if (changeMade) {
+        // The state or gen-stamp of the block has changed. So, we may be
+        // able to process some messages from datanodes that we previously
+        // were unable to process.
+        fsNamesys.getBlockManager().processQueuedMessagesForBlock(newBlock);
+      }
     }
     
     if (newBlocks.length < oldBlocks.length) {
@@ -1168,8 +1170,8 @@ public class FSEditLogLoader {
         throw new IOException("Trying to remove more than one block from file "
             + path);
       }
-      HddsBlockInfo oldBlock = oldBlocks[oldBlocks.length - 1];
-      boolean removed = FSDirWriteFileOp.unprotectedRemoveHDDSBlock(
+      Block oldBlock = oldBlocks[oldBlocks.length - 1];
+      boolean removed = FSDirWriteFileOp.unprotectedRemoveBlock(
           fsDir, path, iip, file, oldBlock);
       if (!removed && !(op instanceof UpdateBlocksOp)) {
         throw new IOException("Trying to delete non-existant block " + oldBlock);
@@ -1178,35 +1180,15 @@ public class FSEditLogLoader {
       final boolean isStriped = ecPolicy != null;
       // We're adding blocks
       for (int i = oldBlocks.length; i < newBlocks.length; i++) {
-        HddsBlockInfo newBlock = newBlocks[i];
-//        final BlockInfo newBI;
-//        if (!op.shouldCompleteLastBlock()) {
-//          // TODO: shouldn't this only be true for the last block?
-//          // what about an old-version fsync() where fsync isn't called
-//          // until several blocks in?
-//          if (isStriped) {
-//            newBI = new BlockInfoStriped(newBlock, ecPolicy);
-//          } else {
-//            newBI = new BlockInfoContiguous(newBlock,
-//                file.getPreferredBlockReplication());
-//          }
-//          newBI.convertToBlockUnderConstruction(
-//              BlockUCState.UNDER_CONSTRUCTION, null);
-//        } else {
-//          // OP_CLOSE should add finalized blocks. This code path
-//          // is only executed when loading edits written by prior
-//          // versions of Hadoop. Current versions always log
-//          // OP_ADD operations as each block is allocated.
-//          if (isStriped) {
-//            newBI = new BlockInfoStriped(newBlock, ecPolicy);
-//          } else {
-//            newBI = new BlockInfoContiguous(newBlock,
-//                file.getFileReplication());
-//          }
-//        }
-//        fsNamesys.getBlockManager().addBlockCollectionWithCheck(newBI, file);
-        file.addHDDSBlock(newBlock);
-//        fsNamesys.getBlockManager().processQueuedMessagesForBlock(newBlock);
+        Block newBlock = newBlocks[i];
+        final BlockInfo newBI = (BlockInfo) newBlock;
+        if (!op.shouldCompleteLastBlock()) {
+          newBI.convertToBlockUnderConstruction(
+              BlockUCState.UNDER_CONSTRUCTION, null);
+        }
+        fsNamesys.getBlockManager().addBlockCollectionWithCheck(newBI, file);
+        file.addBlock(newBI);
+        fsNamesys.getBlockManager().processQueuedMessagesForBlock(newBlock);
       }
     }
   }

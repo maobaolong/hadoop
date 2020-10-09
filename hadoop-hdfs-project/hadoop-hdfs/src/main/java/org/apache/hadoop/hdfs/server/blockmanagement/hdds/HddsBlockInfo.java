@@ -18,10 +18,7 @@
 
 package org.apache.hadoop.hdfs.server.blockmanagement.hdds;
 
-import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
-import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
-import org.apache.hadoop.hdds.scm.pipeline.UnknownPipelineStateException;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
 import org.apache.hadoop.io.Writable;
@@ -37,118 +34,79 @@ import java.util.Objects;
  */
 public final class HddsBlockInfo extends BlockInfoContiguous
     implements Writable{
-  private BlockID blockID;
-  // the id of this subkey in all the subkeys.
-  private long length;
-  private long offset;
   // Block token, required for client authentication when security is enabled.
   // TODO(baoloongmao) take token back when we need.
 //  private Token<OzoneBlockTokenIdentifier> token;
   // the version number indicating when this block was added
+  private long containerId;
 
   public HddsBlockInfo() {
     super((short) 0);
   }
 
-  private HddsBlockInfo(BlockID blockID, long length, long offset) {
+  private HddsBlockInfo(long containerId, long localID,
+      long length) {
     super((short) 0);
-    this.blockID = blockID;
-    this.length = length;
-    this.offset = offset;
-  }
-
-  public BlockID getBlockID() {
-    return blockID;
+    setBlockId(localID);
+    setNumBytes(length);
+    this.containerId = containerId;
   }
 
   public long getContainerID() {
-    return blockID.getContainerID();
-  }
-
-  public long getLocalID() {
-    return blockID.getLocalID();
-  }
-
-  public long getLength() {
-    return length;
-  }
-
-  public void setLength(long length) {
-    this.length = length;
-  }
-
-  public long getOffset() {
-    return offset;
-  }
-
-  public long getBlockCommitSequenceId() {
-    return blockID.getBlockCommitSequenceId();
+    return this.containerId;
   }
 
   /**
    * Builder of OmKeyLocationInfo.
    */
   public static class Builder {
-    private BlockID blockID;
     private long length;
-    private long offset;
-
-    public Builder setBlockID(BlockID blockId) {
-      this.blockID = blockId;
-      return this;
-    }
+    private long containerId;
+    private long localId;
 
     public Builder setLength(long len) {
       this.length = len;
       return this;
     }
 
-    public Builder setOffset(long off) {
-      this.offset = off;
+    public Builder setContainerId(long containerId) {
+      this.containerId = containerId;
+      return this;
+    }
+
+    public Builder setLocalId(long localId) {
+      this.localId = localId;
       return this;
     }
 
     public HddsBlockInfo build() {
-      return new HddsBlockInfo(blockID, length, offset);
+      return new HddsBlockInfo(containerId, localId, length);
     }
   }
 
-  public HdfsProtos.HDDSServerLocationInfoProto getProtobuf() {
-    return HdfsProtos.HDDSServerLocationInfoProto
+  public ClientNamenodeSCMProtocolProtos.HddsBlockInfoProto getProtobuf() {
+    return ClientNamenodeSCMProtocolProtos.HddsBlockInfoProto
         .newBuilder()
-        .setContainerId(blockID.getContainerID())
-        .setLocalId(blockID.getLocalID())
-        .setLength(getLength())
-        .setOffset(getOffset())
+        .setContainerId(getContainerID())
+        .setLocalId(getBlockId())
+        .setLength(getNumBytes())
         .build();
   }
 
   public static HddsBlockInfo getFromProtobuf(
-      HdfsProtos.HDDSServerLocationInfoProto locationInfoProto) {
+      ClientNamenodeSCMProtocolProtos.HddsBlockInfoProto locationInfoProto) {
     return new HddsBlockInfo.Builder()
-        .setBlockID(new BlockID(locationInfoProto.getContainerId(),
-            locationInfoProto.getLocalId()))
+        .setContainerId(locationInfoProto.getContainerId())
+        .setLocalId(locationInfoProto.getLocalId())
         .setLength(locationInfoProto.getLength())
-        .setOffset(locationInfoProto.getOffset())
         .build();
-  }
-
-  private static Pipeline getPipeline(
-      ClientNamenodeSCMProtocolProtos.HddsLocation keyLocation) {
-    try {
-      return keyLocation.hasPipeline() ?
-          Pipeline.getFromProtobuf(keyLocation.getPipeline()) : null;
-    } catch (UnknownPipelineStateException e) {
-      return null;
-    }
   }
 
   @Override
   public String toString() {
-    return "{blockID={containerID=" + blockID.getContainerID() +
-        ", localID=" + blockID.getLocalID() + "}" +
-        ", length=" + length +
-        ", offset=" + offset +
+    return "{blockID={containerID=" + getContainerID() +
+        ", localID=" + getBlockId() + "}" +
+        ", numOfBytes=" + getNumBytes() +
         '}';
   }
 
@@ -166,18 +124,17 @@ public final class HddsBlockInfo extends BlockInfoContiguous
   }
 
   final void writeHelper(DataOutput out) throws IOException {
-    out.writeLong(blockID.getContainerID());
-    out.writeLong(blockID.getLocalID());
-    out.writeLong(length);
-    out.writeLong(offset);
+    out.writeLong(getContainerID());
+    out.writeLong(getBlockId());
+    out.writeLong(getNumBytes());
   }
 
   final void readHelper(DataInput in) throws IOException {
-    long containerID = in.readLong();
+    long containerId = in.readLong();
     long localID = in.readLong();
-    this.blockID = new BlockID(containerID, localID);
-    this.length = in.readLong();
-    this.offset = in.readLong();
+    this.containerId = containerId;
+    setBlockId(localID);
+    setNumBytes(in.readLong());
   }
 
   @Override
@@ -189,17 +146,20 @@ public final class HddsBlockInfo extends BlockInfoContiguous
       return false;
     }
     HddsBlockInfo that = (HddsBlockInfo) o;
-    return length == that.length &&
-        offset == that.offset &&
-        Objects.equals(blockID, that.blockID);
+    return getNumBytes() == that.getNumBytes() &&
+        getContainerID() == that.getContainerID() &&
+        getBlockId() == that.getBlockId();
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(blockID, length, offset);
+    return Objects.hash(getBlockId(), getNumBytes(), getContainerID());
   }
 
-  public long getNumBytes() {
-    return length;
+  public String getBlockName() {
+    return new StringBuilder().append(BLOCK_FILE_PREFIX)
+        .append(getContainerID())
+        .append("_")
+        .append(getBlockId()).toString();
   }
 }

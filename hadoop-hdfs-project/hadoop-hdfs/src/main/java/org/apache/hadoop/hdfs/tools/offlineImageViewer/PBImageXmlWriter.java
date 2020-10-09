@@ -37,6 +37,7 @@ import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.permission.AclEntry;
 import org.apache.hadoop.fs.permission.PermissionStatus;
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
 import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicyInfo;
 import org.apache.hadoop.hdfs.protocol.proto.ClientNamenodeProtocolProtos.CacheDirectiveInfoExpirationProto;
@@ -533,12 +534,11 @@ public final class PBImageXmlWriter {
     dumpAcls(f.getAcl());
     if (f.getHddsBlocksCount() > 0) {
       out.print("<" + INODE_SECTION_BLOCKS + ">");
-      for (HdfsProtos.HDDSServerLocationInfoProto b : f.getHddsBlocksList()) {
+      for (ClientNamenodeSCMProtocolProtos.HddsBlockInfoProto b : f.getHddsBlocksList()) {
         out.print("<" + INODE_SECTION_BLOCK + ">");
         o(INODE_SECTION_CONTAINER_ID, b.getContainerId())
             .o(INODE_SECTION_LOCAL_ID, b.getLocalId())
-            .o(INODE_SECTION_LENGTH, b.getLength())
-            .o(INODE_SECTION_OFFSET, b.getOffset());
+            .o(INODE_SECTION_LENGTH, b.getLength());
         out.print("</" + INODE_SECTION_BLOCK + ">\n");
       }
       out.print("</" + INODE_SECTION_BLOCKS + ">\n");
