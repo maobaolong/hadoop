@@ -965,7 +965,7 @@ public class HdfsBlockManager implements BlockManager {
     assert block.getNumBytes() <= commitBlock.getNumBytes() :
         "commitBlock length is less than the stored one "
             + commitBlock.getNumBytes() + " vs. " + block.getNumBytes();
-    if(block.getGenerationStamp() != commitBlock.getGenerationStamp()) {
+    if (block.getGenerationStamp() != commitBlock.getGenerationStamp()) {
       throw new IOException("Commit block with mismatching GS. NN has " +
           block + ", client submits " + commitBlock);
     }
@@ -988,14 +988,14 @@ public class HdfsBlockManager implements BlockManager {
    */
   public boolean commitOrCompleteLastBlock(BlockCollection bc,
       Block commitBlock, INodesInPath iip) throws IOException {
-    if(commitBlock == null)
+    if (commitBlock == null)
       return false; // not committing, this is a block allocation retry
     BlockInfo lastBlock = bc.getLastBlock();
-    if(lastBlock == null)
+    if (lastBlock == null)
       return false; // no blocks in file yet
-    if(lastBlock.isComplete())
+    if (lastBlock.isComplete())
       return false; // already completed (e.g. by syncBlock)
-    if(lastBlock.isUnderRecovery()) {
+    if (lastBlock.isUnderRecovery()) {
       throw new IOException("Commit or complete block " + commitBlock +
           ", whereas it is under recovery.");
     }
@@ -1189,7 +1189,7 @@ public class HdfsBlockManager implements BlockManager {
     for(DatanodeStorageInfo storage : blocksMap.getStorages(block)) {
       // filter invalidate replicas
       Block b = getBlockOnStorage(block, storage);
-      if(b != null && 
+      if (b != null &&
           !invalidateBlocks.contains(storage.getDatanodeDescriptor(), b)) {
         locations.add(storage);
       }
@@ -1326,7 +1326,7 @@ public class HdfsBlockManager implements BlockManager {
       }
     }
 
-    if(j < machines.length) {
+    if (j < machines.length) {
       machines = Arrays.copyOf(machines, j);
     }
 
@@ -1511,7 +1511,7 @@ public class HdfsBlockManager implements BlockManager {
     }
 
     int numBlocks = node.numBlocks();
-    if(numBlocks == 0) {
+    if (numBlocks == 0) {
       return new BlocksWithLocations(new BlockWithLocations[0]);
     }
     // starting from a random block
@@ -1522,17 +1522,17 @@ public class HdfsBlockManager implements BlockManager {
     BlockInfo curBlock;
     while(totalSize<size && iter.hasNext()) {
       curBlock = iter.next();
-      if(!curBlock.isComplete())  continue;
+      if (!curBlock.isComplete())  continue;
       if (curBlock.getNumBytes() < minBlockSize) {
         continue;
       }
       totalSize += addBlock(curBlock, results);
     }
-    if(totalSize<size) {
+    if (totalSize<size) {
       iter = node.getBlockIterator(); // start from the beginning
       for(int i=0; i<startBlock&&totalSize<size; i++) {
         curBlock = iter.next();
-        if(!curBlock.isComplete())  continue;
+        if (!curBlock.isComplete())  continue;
         if (curBlock.getNumBytes() < minBlockSize) {
           continue;
         }
@@ -1896,7 +1896,7 @@ public class HdfsBlockManager implements BlockManager {
     try {
       for(BlockReconstructionWork rw : reconWork){
         final DatanodeStorageInfo[] targets = rw.getTargets();
-        if(targets == null || targets.length == 0){
+        if (targets == null || targets.length == 0){
           rw.resetTargets();
           continue;
         }
@@ -1963,7 +1963,7 @@ public class HdfsBlockManager implements BlockManager {
         liveBlockIndices, priority);
     short requiredRedundancy = getExpectedLiveRedundancyNum(block,
         numReplicas);
-    if(srcNodes == null || srcNodes.length == 0) {
+    if (srcNodes == null || srcNodes.length == 0) {
       // block can not be reconstructed from any node
       LOG.debug("Block {} cannot be reconstructed from any node", block);
       NameNode.getNameNodeMetrics().incNumTimesReReplicationNotScheduled();
@@ -2085,7 +2085,7 @@ public class HdfsBlockManager implements BlockManager {
 
     int numEffectiveReplicas = numReplicas.liveReplicas() + pendingNum;
     // remove from neededReconstruction
-    if(numEffectiveReplicas + targets.length >= requiredRedundancy) {
+    if (numEffectiveReplicas + targets.length >= requiredRedundancy) {
       neededReconstruction.remove(block, priority);
     }
     return true;
@@ -2290,7 +2290,7 @@ public class HdfsBlockManager implements BlockManager {
         continue;
       }
 
-      if(isStriped || srcNodes.isEmpty()) {
+      if (isStriped || srcNodes.isEmpty()) {
         srcNodes.add(node);
         if (isStriped) {
           byte blockIndex = ((BlockInfoStriped) block).
@@ -3263,7 +3263,7 @@ public class HdfsBlockManager implements BlockManager {
     int numUsableReplicas = num.liveReplicas() +
         num.decommissioning() + num.liveEnteringMaintenanceReplicas();
 
-    if(storedBlock.getBlockUCState() == BlockUCState.COMMITTED &&
+    if (storedBlock.getBlockUCState() == BlockUCState.COMMITTED &&
         hasMinStorage(storedBlock, numUsableReplicas)) {
       addExpectedReplicasToPending(storedBlock);
       completeBlock(storedBlock, null, false);
@@ -3831,7 +3831,7 @@ public class HdfsBlockManager implements BlockManager {
    */
   private long addBlock(BlockInfo block, List<BlockWithLocations> results) {
     final List<DatanodeStorageInfo> locations = getValidLocations(block);
-    if(locations.size() == 0) {
+    if (locations.size() == 0) {
       return 0;
     } else {
       final String[] datanodeUuids = new String[locations.size()];
@@ -3845,7 +3845,7 @@ public class HdfsBlockManager implements BlockManager {
       }
       BlockWithLocations blkWithLocs = new BlockWithLocations(block,
           datanodeUuids, storageIDs, storageTypes);
-      if(block.isStriped()) {
+      if (block.isStriped()) {
         BlockInfoStriped blockStriped = (BlockInfoStriped) block;
         byte[] indices = new byte[locations.size()];
         for (int i = 0; i < locations.size(); i++) {
@@ -3918,7 +3918,7 @@ public class HdfsBlockManager implements BlockManager {
 
     // find block by blockId
     BlockInfo storedBlock = getStoredBlock(block);
-    if(storedBlock == null) {
+    if (storedBlock == null) {
       // If blocksMap does not contain reported block id,
       // the replica should be removed from the data-node.
       blockLog.debug("BLOCK* addBlock: block {} on node {} size {} does not " +
@@ -3932,7 +3932,7 @@ public class HdfsBlockManager implements BlockManager {
     LOG.debug("In memory blockUCState = {}", ucState);
 
     // Ignore replicas already scheduled to be removed from the DN
-    if(invalidateBlocks.contains(node, block)) {
+    if (invalidateBlocks.contains(node, block)) {
       return;
     }
 

@@ -5329,7 +5329,8 @@ public abstract class FSEditLogOp {
     long localId = Long.parseLong(st.getValue("LOCAL_ID"));
     long length = Long.parseLong(st.getValue("LENGTH"));
     return new HddsBlockInfo.Builder()
-        .setBlockID(containerId, localId)
+        .setContainerId(containerId)
+        .setLocalId(localId)
         .setLength(length)
         .build();
   }

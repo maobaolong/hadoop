@@ -608,12 +608,6 @@ message BlockProto {
   optional uint64 numBytes = 3 [default = 0];
 }
 
-message HDDSServerLocationInfoProto {
-  required uint64 containerId = 1;
-  required uint64 localId = 2;
-  required uint64 length = 3;
-}
-
 /**
  * Information related to a snapshot
  * TODO: add more information

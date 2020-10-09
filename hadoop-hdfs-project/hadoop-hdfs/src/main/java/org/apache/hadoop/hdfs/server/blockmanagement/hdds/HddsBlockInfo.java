@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.hdfs.server.blockmanagement.hdds;
 
+import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
 import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
 import org.apache.hadoop.io.Writable;
@@ -37,21 +38,22 @@ public final class HddsBlockInfo extends BlockInfoContiguous
   // TODO(baoloongmao) take token back when we need.
 //  private Token<OzoneBlockTokenIdentifier> token;
   // the version number indicating when this block was added
+  private long containerId;
 
   public HddsBlockInfo() {
     super((short) 0);
   }
 
-  private HddsBlockInfo(long containerID, long localID,
+  private HddsBlockInfo(long containerId, long localID,
       long length) {
     super((short) 0);
     setBlockId(localID);
     setNumBytes(length);
-    setGenerationStamp(containerID);
+    this.containerId = containerId;
   }
 
   public long getContainerID() {
-    return getGenerationStamp();
+    return this.containerId;
   }
 
   /**
@@ -80,16 +82,10 @@ public final class HddsBlockInfo extends BlockInfoContiguous
     public HddsBlockInfo build() {
       return new HddsBlockInfo(containerId, localId, length);
     }
-
-    public Builder setBlockID(long containerId, long localId) {
-      this.containerId = containerId;
-      this.localId = localId;
-      return this;
-    }
   }
 
-  public HdfsProtos.HDDSServerLocationInfoProto getProtobuf() {
-    return HdfsProtos.HDDSServerLocationInfoProto
+  public ClientNamenodeSCMProtocolProtos.HddsBlockInfoProto getProtobuf() {
+    return ClientNamenodeSCMProtocolProtos.HddsBlockInfoProto
         .newBuilder()
         .setContainerId(getContainerID())
         .setLocalId(getBlockId())
@@ -98,7 +94,7 @@ public final class HddsBlockInfo extends BlockInfoContiguous
   }
 
   public static HddsBlockInfo getFromProtobuf(
-      HdfsProtos.HDDSServerLocationInfoProto locationInfoProto) {
+      ClientNamenodeSCMProtocolProtos.HddsBlockInfoProto locationInfoProto) {
     return new HddsBlockInfo.Builder()
         .setContainerId(locationInfoProto.getContainerId())
         .setLocalId(locationInfoProto.getLocalId())
@@ -134,9 +130,9 @@ public final class HddsBlockInfo extends BlockInfoContiguous
   }
 
   final void readHelper(DataInput in) throws IOException {
-    long containerID = in.readLong();
+    long containerId = in.readLong();
     long localID = in.readLong();
-    setGenerationStamp(containerID);
+    this.containerId = containerId;
     setBlockId(localID);
     setNumBytes(in.readLong());
   }

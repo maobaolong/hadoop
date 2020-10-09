@@ -496,14 +496,14 @@ public class HddsBlockManager implements BlockManager {
   @Override
   public boolean commitOrCompleteLastBlock(BlockCollection bc,
       Block commitBlock, INodesInPath iip) throws IOException {
-    if(commitBlock == null)
+    if (commitBlock == null)
       return false; // not committing, this is a block allocation retry
     BlockInfo lastBlock = bc.getLastBlock();
-    if(lastBlock == null)
+    if (lastBlock == null)
       return false; // no blocks in file yet
-    if(lastBlock.isComplete())
+    if (lastBlock.isComplete())
       return false; // already completed (e.g. by syncBlock)
-    if(lastBlock.isUnderRecovery()) {
+    if (lastBlock.isUnderRecovery()) {
       throw new IOException("Commit or complete block " + commitBlock +
           ", whereas it is under recovery.");
     }
@@ -539,7 +539,7 @@ public class HddsBlockManager implements BlockManager {
     assert block.getNumBytes() <= commitBlock.getNumBytes() :
         "commitBlock length is less than the stored one "
             + commitBlock.getNumBytes() + " vs. " + block.getNumBytes();
-    if(block.getGenerationStamp() != commitBlock.getGenerationStamp()) {
+    if (block.getGenerationStamp() != commitBlock.getGenerationStamp()) {
       throw new IOException("Commit block with mismatching GS. NN has " +
           block + ", client submits " + commitBlock);
     }
@@ -1147,6 +1147,7 @@ public class HddsBlockManager implements BlockManager {
 
   @Override
   public BlockInfo addBlockCollection(BlockInfo block, BlockCollection bc) {
+    block.setBlockCollectionId(bc.getId());
     return block;
   }
 

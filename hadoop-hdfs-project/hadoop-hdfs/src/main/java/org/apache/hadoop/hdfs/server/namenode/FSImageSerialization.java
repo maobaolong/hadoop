@@ -602,7 +602,8 @@ public class FSImageSerialization {
       long length = WritableUtils.readVLong(in) +
           ((prev != null) ? prev.getNumBytes() : 0);
       ret[i] = new HddsBlockInfo.Builder()
-          .setBlockID(containerId, localId)
+          .setContainerId(containerId)
+          .setLocalId(localId)
           .setLength(length)
           .build();
       prev = (HddsBlockInfo) ret[i];
