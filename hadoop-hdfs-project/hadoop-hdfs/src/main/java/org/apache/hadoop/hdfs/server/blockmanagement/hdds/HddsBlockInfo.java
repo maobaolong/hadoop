@@ -19,8 +19,8 @@
 package org.apache.hadoop.hdfs.server.blockmanagement.hdds;
 
 import org.apache.hadoop.hdds.protocol.proto.ClientNamenodeSCMProtocolProtos;
-import org.apache.hadoop.hdfs.protocol.proto.HdfsProtos;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoContiguous;
+import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeStorageInfo;
 import org.apache.hadoop.io.Writable;
 
 import java.io.DataInput;
@@ -34,6 +34,8 @@ import java.util.Objects;
  */
 public final class HddsBlockInfo extends BlockInfoContiguous
     implements Writable{
+  public static final DatanodeStorageInfo[] DN_STORAGE_INFOS_EMPTY_ARRAY = {};
+
   // Block token, required for client authentication when security is enabled.
   // TODO(baoloongmao) take token back when we need.
 //  private Token<OzoneBlockTokenIdentifier> token;
@@ -47,6 +49,7 @@ public final class HddsBlockInfo extends BlockInfoContiguous
   private HddsBlockInfo(long containerId, long localID,
       long length) {
     super((short) 0);
+    storages = DN_STORAGE_INFOS_EMPTY_ARRAY;
     setBlockId(localID);
     setNumBytes(length);
     this.containerId = containerId;
