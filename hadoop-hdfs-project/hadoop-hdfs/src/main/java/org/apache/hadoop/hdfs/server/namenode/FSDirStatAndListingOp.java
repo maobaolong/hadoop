@@ -469,7 +469,7 @@ class FSDirStatAndListingOp {
     final HdfsFileStatus listing[] = new HdfsFileStatus[numOfListing];
     for (int i = 0; i < numOfListing; i++) {
       Snapshot.Root sRoot = snapshots.get(i + skipSize).getRoot();
-      listing[i] = createFileStatus(fsd, iip, sRoot,
+      listing[i] = createHDDSFileStatus(fsd, iip, sRoot,
           HdfsConstants.BLOCK_STORAGE_POLICY_ID_UNSPECIFIED, false, false);
     }
     return new DirectoryListing(
