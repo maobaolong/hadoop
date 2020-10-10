@@ -105,6 +105,7 @@ public class HddsBlockManager implements BlockManager {
   public final short maxReplication;
   private ObjectName mxBeanName;
   private final InetSocketAddress scmBlockAddress;
+  private final short minStorageNum;
 
   public HddsBlockManager(final FSNamesystem namesystem,
       final Configuration conf) throws IOException {
@@ -126,6 +127,8 @@ public class HddsBlockManager implements BlockManager {
         DFSConfigKeys.DFS_NAMENODE_REPLICATION_MIN_DEFAULT);
     maxReplication = (short)conf.getInt(DFSConfigKeys.DFS_REPLICATION_MAX_KEY,
         DFSConfigKeys.DFS_REPLICATION_MAX_DEFAULT);
+    minStorageNum = (short)o3Conf.getInt(DFSConfigKeys.DFS_NAMENODE_REPLICATION_MIN_KEY,
+        DFSConfigKeys.DFS_NAMENODE_REPLICATION_MIN_DEFAULT);
   }
 
   @VisibleForTesting
@@ -463,7 +466,7 @@ public class HddsBlockManager implements BlockManager {
 
   @Override
   public short getMinStorageNum(BlockInfo block) {
-    return 0;
+    return minStorageNum;
   }
 
   @Override
