@@ -84,6 +84,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.Callable;
 
 import static org.apache.hadoop.hdds.HddsUtils.getScmAddressForBlockClients;
@@ -106,6 +107,7 @@ public class HddsBlockManager implements BlockManager {
   private ObjectName mxBeanName;
   private final InetSocketAddress scmBlockAddress;
   private final short minStorageNum;
+  private final AtomicLong blockNum;
 
   public HddsBlockManager(final FSNamesystem namesystem,
       final Configuration conf) throws IOException {
@@ -129,6 +131,7 @@ public class HddsBlockManager implements BlockManager {
         DFSConfigKeys.DFS_REPLICATION_MAX_DEFAULT);
     minStorageNum = (short)o3Conf.getInt(DFSConfigKeys.DFS_NAMENODE_REPLICATION_MIN_KEY,
         DFSConfigKeys.DFS_NAMENODE_REPLICATION_MIN_DEFAULT);
+    blockNum = new AtomicLong();
   }
 
   @VisibleForTesting
@@ -1044,6 +1047,7 @@ public class HddsBlockManager implements BlockManager {
   @Override
   public void removeBlock(BlockInfo block) {
     // TODO(baoloongmao): micahzhao will finish this.
+    blockNum.decrementAndGet();
   }
 
   /**
@@ -1151,6 +1155,7 @@ public class HddsBlockManager implements BlockManager {
   @Override
   public BlockInfo addBlockCollection(BlockInfo block, BlockCollection bc) {
     block.setBlockCollectionId(bc.getId());
+    blockNum.incrementAndGet();
     return block;
   }
 
@@ -1165,6 +1170,7 @@ public class HddsBlockManager implements BlockManager {
   public BlockInfo addBlockCollectionWithCheck(BlockInfo block,
       BlockCollection bc) {
     block.setBlockCollectionId(bc.getId());
+    blockNum.incrementAndGet();
     return block;
   }
 
@@ -1186,6 +1192,7 @@ public class HddsBlockManager implements BlockManager {
    */
   @Override
   public void removeBlockFromMap(BlockInfo block) {
+    blockNum.decrementAndGet();
   }
 
   /**
@@ -1340,7 +1347,7 @@ public class HddsBlockManager implements BlockManager {
    */
   @Override
   public long getTotalBlocks() {
-    return 0;
+    return blockNum.get();
   }
 
   @Override
@@ -1580,7 +1587,7 @@ public class HddsBlockManager implements BlockManager {
    */
   @Override
   public long getTotalReplicatedBlocks() {
-    return 0;
+    return blockNum.get();
   }
 
   /**
