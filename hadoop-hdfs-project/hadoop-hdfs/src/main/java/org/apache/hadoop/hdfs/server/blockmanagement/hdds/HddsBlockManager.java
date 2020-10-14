@@ -52,12 +52,28 @@ import org.apache.hadoop.hdfs.security.token.block.BlockTokenIdentifier;
 import org.apache.hadoop.hdfs.security.token.block.BlockTokenSecretManager;
 import org.apache.hadoop.hdfs.security.token.block.DataEncryptionKey;
 import org.apache.hadoop.hdfs.security.token.block.ExportedBlockKeys;
-import org.apache.hadoop.hdfs.server.blockmanagement.*;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockCollection;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockIdManager;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfoStriped;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockManager;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockPlacementPolicy;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockReportLeaseManager;
+import org.apache.hadoop.hdfs.server.blockmanagement.BlockStoragePolicySuite;
+import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeDescriptor;
+import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeManager;
+import org.apache.hadoop.hdfs.server.blockmanagement.DatanodeStorageInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.NumberReplicas;
+import org.apache.hadoop.hdfs.server.blockmanagement.ProvidedStorageMap;
+import org.apache.hadoop.hdfs.server.blockmanagement.ReplicaUnderConstruction;
+import org.apache.hadoop.hdfs.server.blockmanagement.SafeModeManager;
+import org.apache.hadoop.hdfs.server.blockmanagement.StorageTypeStats;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodesInPath;
 import org.apache.hadoop.hdfs.server.namenode.sps.StoragePolicySatisfyManager;
+import org.apache.hadoop.hdfs.server.protocol.BlockCommand;
 import org.apache.hadoop.hdfs.server.protocol.BlockReportContext;
 import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations;
 import org.apache.hadoop.hdfs.server.protocol.DatanodeCommand;
@@ -67,6 +83,7 @@ import org.apache.hadoop.hdfs.server.protocol.StorageReceivedDeletedBlocks;
 import org.apache.hadoop.metrics2.util.MBeans;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.ozone.common.BlockGroup;
+import org.apache.hadoop.util.ChunkedArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -337,23 +354,6 @@ public class HddsBlockManager implements BlockManager {
       locationInfos.add(builder.build());
     }
     return locationInfos;
-  }
-
-  /**
-   * From the given list, remove the blocks use Ozone SCM
-   *
-   * @param blocksList
-   *          An instance of {@link List< BlockGroup >} which contains a list
-   *          of blocks that need to be removed
-   */
-  public void removeBlocks(List<BlockGroup> blocksList) {
-    try {
-      if (blocksList != null && !blocksList.isEmpty()) {
-        scmClient.getBlockClient().deleteKeyBlocks(blocksList);
-      }
-    } catch (IOException e) {
-      LOG.error("Error while deleting key blocks.", e);
-    }
   }
 
   public void clear() {
@@ -1046,8 +1046,12 @@ public class HddsBlockManager implements BlockManager {
 
   @Override
   public void removeBlock(BlockInfo block) {
-    // TODO(baoloongmao): micahzhao will finish this.
-    blockNum.decrementAndGet();
+    assert namesystem.hasWriteLock();
+    // No need to ACK blocks that are being removed entirely
+    // from the namespace, since the removal of the associated
+    // file already removes them from the block map below.
+    block.setNumBytes(BlockCommand.NO_ACK);
+    removeBlockFromMap(block);
   }
 
   /**
@@ -1192,7 +1196,24 @@ public class HddsBlockManager implements BlockManager {
    */
   @Override
   public void removeBlockFromMap(BlockInfo block) {
+    assert block instanceof HddsBlockInfo;
     blockNum.decrementAndGet();
+    // TODO(baoloongmao): micahzhao will create a member invalidateBlocks to
+    //  make remove async.
+    List<BlockGroup> toDeleteBlockGroupList = new ChunkedArrayList<>();
+    List<BlockID> item = new ArrayList<>();
+    item.add(new BlockID(((HddsBlockInfo) block).getContainerID(),
+        block.getBlockId()));
+    BlockGroup keyBlocks = BlockGroup.newBuilder()
+        .setKeyName(block.getBlockName()).addAllBlockIDs(item).build();
+    toDeleteBlockGroupList.add(keyBlocks);
+    try {
+      if (toDeleteBlockGroupList != null && !toDeleteBlockGroupList.isEmpty()) {
+        scmClient.getBlockClient().deleteKeyBlocks(toDeleteBlockGroupList);
+      }
+    } catch (IOException e) {
+      LOG.error("Error while deleting key blocks.", e);
+    }
   }
 
   /**

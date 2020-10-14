@@ -3113,7 +3113,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     }
     getEditLog().logSync();
     if (toRemovedBlocks != null) {
-      removeHddsBlocks(toRemovedBlocks);
+      removeBlocks(toRemovedBlocks);
     }
     logAuditEvent(true, operationName, src);
     return ret;
@@ -8434,19 +8434,6 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
     // TODO(baoloongmao): open this after a discussion
 //    sortLocatedBlocks(clientMachine, blocks);
     return blocks;
-  }
-
-  /**
-   * remove List<BlockGroup> toDeleteList from HDDS use hddsBlockManager.
-   *
-   * @param blocks
-   *          An instance of {@link BlocksMapUpdateInfo} which contains a list
-   *          of blocks that need to be removed from blocksMap
-   */
-  void removeHddsBlocks(BlocksMapUpdateInfo blocks) {
-    List<BlockGroup> toDeleteList = blocks.getToDeleteBlockGroupList();
-    HddsBlockManager hddsBlockManager = (HddsBlockManager)getBlockManager();
-    hddsBlockManager.removeBlocks(toDeleteList);
   }
 }
 
