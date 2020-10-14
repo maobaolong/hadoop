@@ -25,7 +25,6 @@ import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.apache.hadoop.ozone.common.BlockGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
@@ -1033,10 +1032,6 @@ public abstract class INode implements INodeAttributes, Diff.Element<byte[]> {
     private final List<BlockInfo> toDeleteList;
 
     /**
-     * The list of blocks that need to be removed from blocksMap
-     */
-    private final List<BlockGroup> toDeleteBlockGroupList;
-    /**
      * The list of blocks whose replication factor needs to be adjusted
      */
     private final List<UpdatedReplicationInfo> toUpdateReplicationInfo;
@@ -1044,7 +1039,6 @@ public abstract class INode implements INodeAttributes, Diff.Element<byte[]> {
     public BlocksMapUpdateInfo() {
       toDeleteList = new ChunkedArrayList<>();
       toUpdateReplicationInfo = new ChunkedArrayList<>();
-      toDeleteBlockGroupList = new ChunkedArrayList<>();
     }
     
     /**
@@ -1052,13 +1046,6 @@ public abstract class INode implements INodeAttributes, Diff.Element<byte[]> {
      */
     public List<BlockInfo> getToDeleteList() {
       return toDeleteList;
-    }
-
-    /**
-     * @return The list of BlockGroup that need to be removed from HDDS
-     */
-    public List<BlockGroup> getToDeleteBlockGroupList() {
-      return toDeleteBlockGroupList;
     }
 
     public List<UpdatedReplicationInfo> toUpdateReplicationInfo() {
@@ -1096,15 +1083,6 @@ public abstract class INode implements INodeAttributes, Diff.Element<byte[]> {
      */
     public void clear() {
       toDeleteList.clear();
-    }
-
-    /**
-     * Add a to-be-deleted BlockGroup into the
-     * {@link BlocksMapUpdateInfo#toDeleteBlockGroupList}
-     * @param toDelete the to-be-deleted BlockGroup
-     */
-    public void addHddsDeleteBlock(BlockGroup  toDelete) {
-      toDeleteBlockGroupList.add(toDelete);
     }
   }
 

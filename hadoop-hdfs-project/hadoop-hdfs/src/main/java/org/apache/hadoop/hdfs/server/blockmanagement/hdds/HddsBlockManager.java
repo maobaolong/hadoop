@@ -58,15 +58,11 @@ import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodesInPath;
 import org.apache.hadoop.hdfs.server.namenode.sps.StoragePolicySatisfyManager;
-import org.apache.hadoop.hdfs.server.protocol.BlockReportContext;
-import org.apache.hadoop.hdfs.server.protocol.BlocksWithLocations;
-import org.apache.hadoop.hdfs.server.protocol.DatanodeCommand;
-import org.apache.hadoop.hdfs.server.protocol.DatanodeRegistration;
-import org.apache.hadoop.hdfs.server.protocol.DatanodeStorage;
-import org.apache.hadoop.hdfs.server.protocol.StorageReceivedDeletedBlocks;
+import org.apache.hadoop.hdfs.server.protocol.*;
 import org.apache.hadoop.metrics2.util.MBeans;
 import org.apache.hadoop.net.Node;
 import org.apache.hadoop.ozone.common.BlockGroup;
+import org.apache.hadoop.util.ChunkedArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -337,23 +333,6 @@ public class HddsBlockManager implements BlockManager {
       locationInfos.add(builder.build());
     }
     return locationInfos;
-  }
-
-  /**
-   * From the given list, remove the blocks use Ozone SCM
-   *
-   * @param blocksList
-   *          An instance of {@link List< BlockGroup >} which contains a list
-   *          of blocks that need to be removed
-   */
-  public void removeBlocks(List<BlockGroup> blocksList) {
-    try {
-      if (blocksList != null && !blocksList.isEmpty()) {
-        scmClient.getBlockClient().deleteKeyBlocks(blocksList);
-      }
-    } catch (IOException e) {
-      LOG.error("Error while deleting key blocks.", e);
-    }
   }
 
   public void clear() {
@@ -1046,8 +1025,12 @@ public class HddsBlockManager implements BlockManager {
 
   @Override
   public void removeBlock(BlockInfo block) {
-    // TODO(baoloongmao): micahzhao will finish this.
-    blockNum.decrementAndGet();
+    assert namesystem.hasWriteLock();
+    // No need to ACK blocks that are being removed entirely
+    // from the namespace, since the removal of the associated
+    // file already removes them from the block map below.
+    block.setNumBytes(BlockCommand.NO_ACK);
+    removeBlockFromMap(block);
   }
 
   /**
@@ -1192,7 +1175,24 @@ public class HddsBlockManager implements BlockManager {
    */
   @Override
   public void removeBlockFromMap(BlockInfo block) {
+    assert block instanceof HddsBlockInfo;
     blockNum.decrementAndGet();
+    // TODO(baoloongmao): micahzhao will create a member invalidateBlocks to
+    //  make remove async.
+    List<BlockGroup> toDeleteBlockGroupList = new ChunkedArrayList<>();
+    List<BlockID> item = new ArrayList<>();
+    item.add(new BlockID(((HddsBlockInfo) block).getContainerID(),
+        block.getBlockId()));
+    BlockGroup keyBlocks = BlockGroup.newBuilder()
+        .setKeyName(block.getBlockName()).addAllBlockIDs(item).build();
+    toDeleteBlockGroupList.add(keyBlocks);
+    try {
+      if (toDeleteBlockGroupList != null && !toDeleteBlockGroupList.isEmpty()) {
+        scmClient.getBlockClient().deleteKeyBlocks(toDeleteBlockGroupList);
+      }
+    } catch (IOException e) {
+      LOG.error("Error while deleting key blocks.", e);
+    }
   }
 
   /**

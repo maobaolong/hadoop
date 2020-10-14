@@ -26,7 +26,6 @@ import static org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot.NO_SNAPSH
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -36,7 +35,6 @@ import java.util.Set;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.fs.StorageType;
 import org.apache.hadoop.fs.permission.PermissionStatus;
-import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.BlockStoragePolicy;
 import org.apache.hadoop.hdfs.protocol.BlockType;
@@ -56,7 +54,6 @@ import org.apache.hadoop.hdfs.server.namenode.snapshot.FileWithSnapshotFeature;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.Snapshot;
 import org.apache.hadoop.hdfs.server.namenode.snapshot.DiffList;
 import org.apache.hadoop.hdfs.util.LongBitFormat;
-import org.apache.hadoop.ozone.common.BlockGroup;
 import org.apache.hadoop.util.StringUtils;
 import static org.apache.hadoop.io.erasurecode.ErasureCodeConstants.REPLICATION_POLICY_ID;
 
@@ -779,17 +776,6 @@ public class INodeFile extends INodeWithAdditionalFields
       sf.clearDiffs();
     }
     updateRemovedUnderConstructionFiles(reclaimContext);
-
-    // add hdds delete block.
-    List<BlockID> item = new ArrayList<>();
-    for (HddsBlockInfo locationInfo : hddsBlocks) {
-      item.add(locationInfo.getBlockID());
-    }
-    if (!item.isEmpty()) {
-      BlockGroup keyBlocks = BlockGroup.newBuilder()
-          .setKeyName(getFullPathName()).addAllBlockIDs(item).build();
-      reclaimContext.collectedBlocks.addHddsDeleteBlock(keyBlocks);
-    }
   }
 
   public void clearFile(ReclaimContext reclaimContext) {
