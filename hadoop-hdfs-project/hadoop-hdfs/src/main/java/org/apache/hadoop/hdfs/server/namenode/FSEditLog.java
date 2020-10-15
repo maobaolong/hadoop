@@ -45,6 +45,7 @@ import org.apache.hadoop.hdfs.protocol.CachePoolInfo;
 import org.apache.hadoop.hdfs.protocol.ErasureCodingPolicy;
 import org.apache.hadoop.hdfs.security.token.delegation.DelegationTokenIdentifier;
 import org.apache.hadoop.hdfs.server.blockmanagement.BlockInfo;
+import org.apache.hadoop.hdfs.server.blockmanagement.hdds.HddsBlockInfo;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.NamenodeRole;
 import org.apache.hadoop.hdfs.server.common.Storage.FormatConfirmable;
@@ -858,16 +859,31 @@ public class FSEditLog implements LogsPurgeable {
     Preconditions.checkState(blocks != null && blocks.length > 0);
     BlockInfo pBlock = blocks.length > 1 ? blocks[blocks.length - 2] : null;
     BlockInfo lastBlock = blocks[blocks.length - 1];
-    AddBlockOp op = AddBlockOp.getInstance(cache.get()).setPath(path)
-        .setPenultimateBlock(pBlock).setLastBlock(lastBlock);
+    AddBlockOp op;
+    if (blocks[0] instanceof HddsBlockInfo) {
+      op = FSEditLogOp.AddXBlockOp.getInstance(cache.get()).setPath(path)
+          .setPenultimateBlock(pBlock).setLastBlock(lastBlock);
+    } else {
+      op = AddBlockOp.getInstance(cache.get()).setPath(path)
+          .setPenultimateBlock(pBlock).setLastBlock(lastBlock);
+    }
     logEdit(op);
   }
   
   public void logUpdateBlocks(String path, INodeFile file, boolean toLogRpcIds) {
     Preconditions.checkArgument(file.isUnderConstruction());
-    UpdateBlocksOp op = UpdateBlocksOp.getInstance(cache.get())
-      .setPath(path)
-      .setBlocks(file.getBlocks());
+    UpdateBlocksOp op;
+    if (file.getBlocks() != null &&
+        file.getBlocks().length > 0 &&
+        file.getBlocks()[0] instanceof HddsBlockInfo) {
+      op = UpdateBlocksOp.getInstance(cache.get())
+          .setPath(path)
+          .setBlocks(file.getBlocks());
+    } else {
+      op = FSEditLogOp.UpdateXBlocksOp.getInstance(cache.get())
+          .setPath(path)
+          .setBlocks(file.getBlocks());
+    }
     logRpcIds(op, toLogRpcIds);
     logEdit(op);
   }

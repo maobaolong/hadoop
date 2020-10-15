@@ -69,6 +69,8 @@ import static org.apache.hadoop.hdfs.server.namenode.FSEditLogOpCodes.OP_UPDATE_
 import static org.apache.hadoop.hdfs.server.namenode.FSEditLogOpCodes.OP_UPDATE_MASTER_KEY;
 import static org.apache.hadoop.hdfs.server.namenode.FSEditLogOpCodes.OP_SET_STORAGE_POLICY;
 import static org.apache.hadoop.hdfs.server.namenode.FSEditLogOpCodes.OP_SET_QUOTA_BY_STORAGETYPE;
+import static org.apache.hadoop.hdfs.server.namenode.FSEditLogOpCodes.OP_ADD_X_BLOCK;
+import static org.apache.hadoop.hdfs.server.namenode.FSEditLogOpCodes.OP_UPDATE_X_BLOCKS;
 
 import java.io.DataInput;
 import java.io.DataInputStream;
@@ -959,6 +961,10 @@ public abstract class FSEditLogOp {
     AddBlockOp() {
       super(OP_ADD_BLOCK);
     }
+
+    AddBlockOp(FSEditLogOpCodes opCode) {
+      super(opCode);
+    }
     
     static AddBlockOp getInstance(OpInstanceCache cache) {
       return (AddBlockOp) cache.get(OP_ADD_BLOCK);
@@ -1007,7 +1013,7 @@ public abstract class FSEditLogOp {
         blocks[0] = penultimateBlock;
       }
       blocks[size - 1] = lastBlock;
-      FSImageSerialization.writeCompactHddsBlockArray(blocks, out);
+      FSImageSerialization.writeCompactBlockArray(blocks, out);
       // clientId and callId
       writeRpcIds(rpcClientId, rpcCallId, out);
     }
@@ -1015,8 +1021,8 @@ public abstract class FSEditLogOp {
     @Override
     void readFields(DataInputStream in, int logVersion) throws IOException {
       path = FSImageSerialization.readString(in);
-      BlockInfo[] blocks =
-          FSImageSerialization.readCompactHddsBlockArray(in, logVersion);
+      Block[] blocks =
+          FSImageSerialization.readCompactBlockArray(in, logVersion);
       Preconditions.checkState(blocks.length == 2 || blocks.length == 1);
       penultimateBlock = blocks.length == 1 ? null : blocks[0];
       lastBlock = blocks[blocks.length - 1];
@@ -1059,6 +1065,26 @@ public abstract class FSEditLogOp {
       readRpcIdsFromXml(st);
     }
   }
+
+  static class AddXBlockOp extends AddBlockOp {
+    public AddXBlockOp() {
+      super(OP_ADD_X_BLOCK);
+    }
+    static AddXBlockOp getInstance(OpInstanceCache cache) {
+      return (AddXBlockOp) cache.get(OP_ADD_X_BLOCK);
+    }
+
+    @Override
+    void readFields(DataInputStream in, int logVersion) throws IOException {
+      setPath(FSImageSerialization.readString(in));
+      Block[] blocks =
+          FSImageSerialization.readCompactHddsBlockArray(in, logVersion);
+      Preconditions.checkState(blocks.length == 2 || blocks.length == 1);
+      setPenultimateBlock(blocks.length == 1 ? null : blocks[0]);
+      setLastBlock(blocks[blocks.length - 1]);
+      readRpcIds(in, logVersion);
+    }
+  }
   
   /**
    * {@literal @AtMostOnce} for {@link ClientProtocol#updatePipeline}, but 
@@ -1071,7 +1097,11 @@ public abstract class FSEditLogOp {
     UpdateBlocksOp() {
       super(OP_UPDATE_BLOCKS);
     }
-    
+
+    UpdateBlocksOp(FSEditLogOpCodes opCode) {
+      super(opCode);
+    }
+
     static UpdateBlocksOp getInstance(OpInstanceCache cache) {
       return (UpdateBlocksOp)cache.get(OP_UPDATE_BLOCKS);
     }
@@ -1106,7 +1136,7 @@ public abstract class FSEditLogOp {
     public
     void writeFields(DataOutputStream out) throws IOException {
       FSImageSerialization.writeString(path, out);
-      FSImageSerialization.writeCompactHddsBlockArray(blocks, out);
+      FSImageSerialization.writeCompactBlockArray(blocks, out);
       // clientId and callId
       writeRpcIds(rpcClientId, rpcCallId, out);
     }
@@ -1114,7 +1144,7 @@ public abstract class FSEditLogOp {
     @Override
     void readFields(DataInputStream in, int logVersion) throws IOException {
       path = FSImageSerialization.readString(in);
-      this.blocks = FSImageSerialization.readCompactHddsBlockArray(
+      this.blocks = FSImageSerialization.readCompactBlockArray(
           in, logVersion);
       readRpcIds(in, logVersion);
     }
@@ -1154,6 +1184,24 @@ public abstract class FSEditLogOp {
         this.blocks[i] = FSEditLogOp.blockFromXml(blocks.get(i));
       }
       readRpcIdsFromXml(st);
+    }
+  }
+
+  static class UpdateXBlocksOp extends UpdateBlocksOp {
+    public UpdateXBlocksOp() {
+      super(OP_UPDATE_X_BLOCKS);
+    }
+    static UpdateXBlocksOp getInstance(OpInstanceCache cache) {
+      return (UpdateXBlocksOp) cache.get(OP_UPDATE_X_BLOCKS);
+    }
+
+    @Override
+    void readFields(DataInputStream in, int logVersion) throws IOException {
+      setPath(FSImageSerialization.readString(in));
+      Block[] blocks =
+          FSImageSerialization.readCompactHddsBlockArray(in, logVersion);
+      setBlocks(blocks);
+      readRpcIds(in, logVersion);
     }
   }
 

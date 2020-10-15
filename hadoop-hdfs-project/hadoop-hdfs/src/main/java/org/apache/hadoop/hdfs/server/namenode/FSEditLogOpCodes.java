@@ -86,6 +86,8 @@ public enum FSEditLogOpCodes {
       DisableErasureCodingPolicyOp.class),
   OP_REMOVE_ERASURE_CODING_POLICY((byte) 52, RemoveErasureCodingPolicyOp.class),
 
+  OP_ADD_X_BLOCK                  ((byte) 100, AddXBlockOp.class),
+  OP_UPDATE_X_BLOCKS              ((byte) 101, UpdateXBlocksOp.class),
   // Note that the current range of the valid OP code is 0~127
   OP_INVALID                    ((byte) -1);
 

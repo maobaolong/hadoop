@@ -813,7 +813,7 @@ public class FSNamesystem implements Namesystem, FSNamesystemMBean,
           HddsBlockManager.class, BlockManager.class);
 
       this.blockManager = ReflectionUtils.newInstance(blockManagerClass, conf,
-          new Class[]{FSNamesystem.class, Configuration.class}, this, conf);
+          new Class[]{Namesystem.class, Configuration.class}, this, conf);
 
       this.datanodeStatistics =
           blockManager.getDatanodeManager().getDatanodeStatistics();

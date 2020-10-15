@@ -69,9 +69,9 @@ import org.apache.hadoop.hdfs.server.blockmanagement.ReplicaUnderConstruction;
 import org.apache.hadoop.hdfs.server.blockmanagement.SafeModeManager;
 import org.apache.hadoop.hdfs.server.blockmanagement.StorageTypeStats;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants;
-import org.apache.hadoop.hdfs.server.namenode.FSNamesystem;
 import org.apache.hadoop.hdfs.server.namenode.INode;
 import org.apache.hadoop.hdfs.server.namenode.INodesInPath;
+import org.apache.hadoop.hdfs.server.namenode.Namesystem;
 import org.apache.hadoop.hdfs.server.namenode.sps.StoragePolicySatisfyManager;
 import org.apache.hadoop.hdfs.server.protocol.BlockCommand;
 import org.apache.hadoop.hdfs.server.protocol.BlockReportContext;
@@ -110,7 +110,7 @@ public class HddsBlockManager implements BlockManager {
   public static final Logger LOG =
       LoggerFactory.getLogger(HddsBlockManager.class);
   private final ScmClient scmClient;
-  private final FSNamesystem namesystem;
+  private final Namesystem namesystem;
   private final HddsDatanodeManager datanodeManager;
   private final HddsSafeModeManager safeModeManager;
   private final BlockIdManager blockIdManager;
@@ -126,7 +126,7 @@ public class HddsBlockManager implements BlockManager {
   private final short minStorageNum;
   private final AtomicLong blockNum;
 
-  public HddsBlockManager(final FSNamesystem namesystem,
+  public HddsBlockManager(final Namesystem namesystem,
       final Configuration conf) throws IOException {
     OzoneConfiguration o3Conf = OzoneConfiguration.of(conf);
     ScmBlockLocationProtocol scmBlockClient =
@@ -335,7 +335,7 @@ public class HddsBlockManager implements BlockManager {
           .allocateBlock(blockSize, 1,
               HddsProtos.ReplicationType.RATIS,
               HddsProtos.ReplicationFactor.valueOf(numTargets),
-              namesystem.getClusterId(),
+              blockPoolId,
               excludeList);
     } catch (SCMException ex) {
       if (ex.getResult()

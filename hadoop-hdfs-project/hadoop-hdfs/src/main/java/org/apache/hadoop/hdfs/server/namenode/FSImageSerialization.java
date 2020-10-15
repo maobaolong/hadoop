@@ -542,29 +542,23 @@ public class FSImageSerialization {
     WritableUtils.writeVInt(out, blocks.length);
     Block prev = null;
     for (Block b : blocks) {
-      long szDelta = b.getNumBytes() -
-          (prev != null ? prev.getNumBytes() : 0);
-      long gsDelta = b.getGenerationStamp() -
-          (prev != null ? prev.getGenerationStamp() : 0);
-      out.writeLong(b.getBlockId()); // blockid is random
-      WritableUtils.writeVLong(out, szDelta);
-      WritableUtils.writeVLong(out, gsDelta);
+      if (b instanceof HddsBlockInfo) {
+        HddsBlockInfo hddsBlockInfo = (HddsBlockInfo) b;
+        out.writeLong(hddsBlockInfo.getContainerID());
+        out.writeLong(hddsBlockInfo.getBlockId());
+        long szDelta = b.getNumBytes() -
+            (prev != null ? prev.getNumBytes() : 0);
+        WritableUtils.writeVLong(out, szDelta);
+      } else {
+        long szDelta = b.getNumBytes() -
+            (prev != null ? prev.getNumBytes() : 0);
+        long gsDelta = b.getGenerationStamp() -
+            (prev != null ? prev.getGenerationStamp() : 0);
+        out.writeLong(b.getBlockId()); // blockid is random
+        WritableUtils.writeVLong(out, szDelta);
+        WritableUtils.writeVLong(out, gsDelta);
+      }
       prev = b;
-    }
-  }
-
-  public static void writeCompactHddsBlockArray(
-      Block[] blocks, DataOutputStream out) throws IOException {
-    WritableUtils.writeVInt(out, blocks.length);
-    HddsBlockInfo prev = null;
-    for (Block b : blocks) {
-      HddsBlockInfo hddsBlockInfo = (HddsBlockInfo) b;
-      out.writeLong(hddsBlockInfo.getContainerID());
-      out.writeLong(hddsBlockInfo.getBlockId());
-      long szDelta = b.getNumBytes() -
-          (prev != null ? prev.getNumBytes() : 0);
-      WritableUtils.writeVLong(out, szDelta);
-      prev = hddsBlockInfo;
     }
   }
 
@@ -588,14 +582,14 @@ public class FSImageSerialization {
     return ret;
   }
 
-  public static BlockInfo[] readCompactHddsBlockArray(
+  public static Block[] readCompactHddsBlockArray(
       DataInput in, int logVersion) throws IOException {
     int num = WritableUtils.readVInt(in);
     if (num < 0) {
       throw new IOException("Invalid block array length: " + num);
     }
-    HddsBlockInfo prev = null;
-    BlockInfo[] ret = new BlockInfo[num];
+    Block prev = null;
+    Block[] ret = new Block[num];
     for (int i = 0; i < num; i++) {
       long containerId = in.readLong();
       long localId = in.readLong();
@@ -606,7 +600,7 @@ public class FSImageSerialization {
           .setLocalId(localId)
           .setLength(length)
           .build();
-      prev = (HddsBlockInfo) ret[i];
+      prev = ret[i];
     }
     return ret;
   }
